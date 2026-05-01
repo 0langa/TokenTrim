@@ -1,4 +1,5 @@
 import { lightCompress } from './lightCompressor';
+import { simplifyProse } from './proseSimplifier';
 
 const TOKEN_CHARS = '!@#$%^&*~`|<>';
 const MIN_PHRASE_LENGTH = 12;
@@ -35,7 +36,7 @@ function extractPhrases(text: string): Map<string, number> {
 }
 
 export function mediumCompress(raw: string): DictionaryResult {
-  let text = lightCompress(raw);
+  let text = simplifyProse(lightCompress(raw));
   const legend: Record<string, string> = {};
 
   const counts = extractPhrases(text);

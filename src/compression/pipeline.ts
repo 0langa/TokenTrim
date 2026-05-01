@@ -2,6 +2,7 @@ import type { CompressionResult, Intensity } from './types';
 import { lightCompress } from './lightCompressor';
 import { mediumCompress, mediumDecompress } from './mediumCompressor';
 import { heavyCompress, heavyDecompress } from './heavyCompressor';
+import { simplifyProse } from './proseSimplifier';
 
 function wordCount(s: string): number {
   return s.trim() === '' ? 0 : s.trim().split(/\s+/).length;
@@ -42,13 +43,13 @@ export function compress(text: string, intensity: Intensity): CompressionResult 
       legend = result.legend;
       // mediumCompress applies lightCompress first, so roundtrip recovers
       // lightCompress(text), not text itself — compare against that baseline
-      const lightened = lightCompress(text);
+      const lightened = simplifyProse(lightCompress(text));
       passed = parityCheck(lightened, output, (s) => mediumDecompress(s, result.legend));
     } else {
       const result = heavyCompress(text);
       output = result.text;
       legend = result.legend;
-      const lightened = lightCompress(text);
+      const lightened = simplifyProse(lightCompress(text));
       passed = parityCheck(lightened, output, (s) => heavyDecompress(s, result.legend));
     }
 
