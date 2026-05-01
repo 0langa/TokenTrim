@@ -1,0 +1,79 @@
+import type { CompressionMode, CompressionModeMeta, ProtectedSpanType } from './types';
+
+export const ALL_PROTECTED_SPANS: ProtectedSpanType[] = [
+  'fenced-code',
+  'inline-code',
+  'url',
+  'file-path',
+  'cli-command',
+  'env-var',
+  'api-placeholder',
+  'number-unit',
+  'json-block',
+  'yaml-toml',
+  'markdown-table',
+  'markdown-heading',
+  'email',
+  'quoted-string',
+];
+
+export const MODES: CompressionModeMeta[] = [
+  {
+    id: 'light',
+    label: 'Light',
+    description: 'Safe structural cleanup with minimal wording changes.',
+    guidance: 'Best readability; use when precision is critical.',
+    expectedSavingsPct: [8, 18],
+    risk: 'safe',
+  },
+  {
+    id: 'normal',
+    label: 'Normal',
+    description: 'Balanced compression with clear, concise rewriting.',
+    guidance: 'Best default for prompt engineering contexts.',
+    expectedSavingsPct: [18, 32],
+    risk: 'low',
+  },
+  {
+    id: 'heavy',
+    label: 'Heavy',
+    description: 'Aggressive syntax compression and symbolization.',
+    guidance: 'Higher savings with moderate readability tradeoff.',
+    expectedSavingsPct: [30, 45],
+    risk: 'medium',
+  },
+  {
+    id: 'ultra',
+    label: 'Ultra',
+    description: 'Maximum caveman-style telegraphic compression.',
+    guidance: 'Maximum compression, readability reduced.',
+    expectedSavingsPct: [35, 55],
+    risk: 'high',
+    advanced: true,
+  },
+];
+
+export function listModes(): CompressionModeMeta[] {
+  return MODES;
+}
+
+export function getModeMeta(mode: CompressionMode): CompressionModeMeta {
+  return MODES.find((m) => m.id === mode) ?? MODES[1];
+}
+
+export function mapLegacyProfileToMode(profileId?: string): CompressionMode {
+  if (!profileId) return 'normal';
+  const map: Record<string, CompressionMode> = {
+    'lossless-light': 'light',
+    'lossless-dict': 'normal',
+    'lossy-prose': 'normal',
+    'docs-readme': 'normal',
+    'meeting-notes': 'normal',
+    'codebase-context': 'heavy',
+    'chat-history': 'heavy',
+    'lossy-agent': 'ultra',
+    'research-notes': 'light',
+    spec: 'light',
+  };
+  return map[profileId] ?? 'normal';
+}

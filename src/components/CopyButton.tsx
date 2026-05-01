@@ -3,53 +3,31 @@ import type { CompressionResult } from '../compression/types';
 
 interface Props {
   result: CompressionResult | null;
-  requireLossyConfirm: boolean;
+  requireUltraConfirm: boolean;
 }
 
-export function CopyButton({ result, requireLossyConfirm }: Props) {
+export function CopyButton({ result, requireUltraConfirm }: Props) {
   const [copied, setCopied] = useState(false);
-  const [copiedPlain, setCopiedPlain] = useState(false);
 
   const ensureConfirmed = () => {
-    if (!requireLossyConfirm) return true;
-    return window.confirm('This profile is one-way and high-risk. Confirm you reviewed warnings/diff before copying output.');
+    if (!requireUltraConfirm) return true;
+    return window.confirm('Ultra mode uses maximum compression and may reduce readability. Copy anyway?');
   };
 
-  const handleCopyWithLegend = async () => {
+  const handleCopy = async () => {
     if (!result || !ensureConfirmed()) return;
-    const prefix = result.legend
-      ? `=== TOKEN LEGEND JSON ===\n${JSON.stringify(result.legend, null, 2)}\n=== END TOKEN LEGEND JSON ===\n\n`
-      : '';
-    await navigator.clipboard.writeText(prefix + result.output);
+    await navigator.clipboard.writeText(result.output);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleCopyPlain = async () => {
-    if (!result || !ensureConfirmed()) return;
-    await navigator.clipboard.writeText(result.output);
-    setCopiedPlain(true);
-    setTimeout(() => setCopiedPlain(false), 2000);
-  };
-
-  const disabled = !result;
-
   return (
-    <div className="flex gap-2">
-      <button
-        onClick={handleCopyPlain}
-        disabled={disabled}
-        className="px-3 py-1.5 rounded text-sm bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-      >
-        {copiedPlain ? 'Copied' : 'Copy output'}
-      </button>
-      <button
-        onClick={handleCopyWithLegend}
-        disabled={disabled}
-        className="px-3 py-1.5 rounded text-sm bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-      >
-        {copied ? 'Copied' : 'Copy + legend'}
-      </button>
-    </div>
+    <button
+      onClick={handleCopy}
+      disabled={!result}
+      className="px-3 py-1.5 rounded text-sm bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+    >
+      {copied ? 'Copied' : 'Copy output'}
+    </button>
   );
 }

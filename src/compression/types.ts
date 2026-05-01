@@ -1,50 +1,6 @@
-export type Guarantee =
-  | 'exact-roundtrip'
-  | 'normalized-roundtrip'
-  | 'semantic-lossy'
-  | 'none';
+export type CompressionMode = 'light' | 'normal' | 'heavy' | 'ultra';
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';
-
-export type ValidationKind =
-  | 'exact-roundtrip'
-  | 'normalized-roundtrip'
-  | 'semantic-baseline'
-  | 'lossy-no-roundtrip'
-  | 'none';
-
-export type CompressionProfile = {
-  id: string;
-  label: string;
-  description: string;
-  reversible: boolean;
-  guarantee: Guarantee;
-  risk: RiskLevel;
-  requiresLegend: boolean;
-  enabledTransforms: string[];
-  protectedSpanTypes: ProtectedSpanType[];
-  normalization?: 'none' | 'light-structural';
-  audienceGuidance: string;
-  expectedSavingsPct: [number, number];
-  recommended: boolean;
-  advanced?: boolean;
-};
-
-export type CompressionLegend = {
-  version: number;
-  profileId: string;
-  reversible: boolean;
-  tokenMap: Record<string, string>;
-  createdAt?: string;
-  metadata?: Record<string, unknown>;
-};
-
-export type ValidationResult = {
-  passed: boolean;
-  validationKind: ValidationKind;
-  baselineDescription: string;
-  warnings: string[];
-};
 
 export type TransformExample = { before: string; after: string };
 
@@ -98,8 +54,6 @@ export type CompressionReport = {
   abbreviationHits: number;
   operatorHits: number;
   protectedSpanStats: ProtectedSpanStats;
-  dictionaryEntries: number;
-  bpeEntries: number;
   riskEvents: RiskEvent[];
   diffPreview: Array<{ kind: 'remove' | 'replace'; before: string; after?: string }>;
 };
@@ -121,17 +75,12 @@ export type CompressionMetrics = {
   estimatedTokensBefore: number;
   estimatedTokensAfter: number;
   estimatedTokenSavings: number;
-  legendOverhead: number;
-  netCharSavingsIncludingLegend: number;
   tokenizerUsed: TokenizerKind;
 };
 
 export type CompressionResult = {
   output: string;
-  legend: CompressionLegend | null;
-  validation: ValidationResult;
-  reversible: boolean;
-  profileId: string;
+  mode: CompressionMode;
   metrics: CompressionMetrics;
   report: CompressionReport;
   warnings: string[];
@@ -139,13 +88,22 @@ export type CompressionResult = {
 };
 
 export type CompressionOptions = {
-  profileId: string;
+  mode?: CompressionMode;
+  profileId?: string;
   tokenizer?: TokenizerKind;
-  customDictionary?: Record<string, string>;
-  customProtectedRegexes?: string[];
 };
 
 export type CompressionRequest = {
   text: string;
   options: CompressionOptions;
+};
+
+export type CompressionModeMeta = {
+  id: CompressionMode;
+  label: 'Light' | 'Normal' | 'Heavy' | 'Ultra';
+  description: string;
+  guidance: string;
+  expectedSavingsPct: [number, number];
+  risk: RiskLevel;
+  advanced?: boolean;
 };

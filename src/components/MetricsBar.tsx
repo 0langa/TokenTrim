@@ -23,17 +23,12 @@ export function MetricsBar({ result, processing }: Props) {
         <span className="text-sm text-slate-400 animate-pulse">Compressing…</span>
       ) : result ? (
         <>
+          <Metric label="Mode" value={result.mode.toUpperCase()} />
           <Metric label="Orig chars" value={result.metrics.originalChars.toLocaleString()} />
           <Metric label="Out chars" value={result.metrics.outputChars.toLocaleString()} />
           <Metric label="Token before" value={result.metrics.estimatedTokensBefore.toLocaleString()} />
           <Metric label="Token after" value={result.metrics.estimatedTokensAfter.toLocaleString()} />
-          <Metric label="Legend OH" value={result.metrics.legendOverhead.toLocaleString()} />
-          <Metric label="Net save" value={result.metrics.netCharSavingsIncludingLegend.toLocaleString()} />
-          <span className={`text-xs self-center ${result.reversible ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {result.reversible
-              ? `Reversible: ${result.validation.passed ? 'validated' : 'failed'}`
-              : `Lossy: ${result.validation.validationKind}`}
-          </span>
+          <Metric label="Net save" value={result.metrics.estimatedTokenSavings.toLocaleString()} />
           <span className="text-xs self-center text-slate-500">Tokenizer: {result.metrics.tokenizerUsed} (estimate)</span>
         </>
       ) : null}

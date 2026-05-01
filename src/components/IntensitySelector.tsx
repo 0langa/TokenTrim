@@ -1,31 +1,28 @@
-import { listProfiles } from '../compression/profiles';
+import { listModes } from '../compression/modes';
+import type { CompressionMode } from '../compression/types';
 
 interface Props {
-  value: string;
-  onChange: (v: string) => void;
+  value: CompressionMode;
+  onChange: (v: CompressionMode) => void;
 }
 
-const OPTIONS = listProfiles();
+const OPTIONS = listModes();
 
 export function IntensitySelector({ value, onChange }: Props) {
   return (
     <div className="flex flex-col gap-2">
       <select
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => onChange(event.target.value as CompressionMode)}
         className="px-3 py-1.5 rounded text-sm bg-slate-700 text-slate-200 border border-slate-600"
       >
-        {OPTIONS.map((profile) => (
-          <option key={profile.id} value={profile.id}>
-            {profile.label}
-            {profile.recommended ? ' · Recommended' : ''}
-            {profile.advanced ? ' · Advanced' : ''}
+        {OPTIONS.map((mode) => (
+          <option key={mode.id} value={mode.id}>
+            {mode.label}
           </option>
         ))}
       </select>
-      <div className="text-[11px] text-slate-400">
-        {OPTIONS.filter((p) => p.recommended).map((p) => p.label).join(', ')} are tuned for safe but noticeable savings.
-      </div>
+      <div className="text-[11px] text-slate-400">Light/Normal prioritize readability. Heavy/Ultra prioritize savings.</div>
     </div>
   );
 }

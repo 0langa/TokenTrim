@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { compress, decompress, listProfiles } from './compression/pipeline';
+import { compress, listModes } from './compression/pipeline';
+import { mapLegacyProfileToMode } from './compression/modes';
+import type { CompressionMode } from './compression/types';
 
 function readArg(flag: string): string | undefined {
   const idx = process.argv.indexOf(flag);
@@ -14,53 +16,48 @@ function readPositional(index: number): string | undefined {
   return args[index];
 }
 
+function resolveMode(): CompressionMode {
+  const mode = readArg('--mode') as CompressionMode | undefined;
+  if (mode && ['light', 'normal', 'heavy', 'ultra'].includes(mode)) return mode;
+  const legacy = readArg('--profile');
+  if (legacy) {
+    console.error(`[compat] --profile is deprecated, mapped to mode '${mapLegacyProfileToMode(legacy)}'. Use --mode.`);
+    return mapLegacyProfileToMode(legacy);
+  }
+  return 'normal';
+}
+
 const cmd = readPositional(0);
 
 if (!cmd || cmd === 'help') {
-  console.log('tokentrim compress <file> --profile <id> [--out file] [--legend file]');
-  console.log('tokentrim decompress <file> --legend <legend.json> [--out file]');
-  console.log('tokentrim batch <dir> --profile <id>');
-  console.log('profiles:', listProfiles().map((p) => p.id).join(', '));
+  console.log('tokentrim compress <file> --mode <light|normal|heavy|ultra> [--out file]');
+  console.log('tokentrim batch <dir> --mode <light|normal|heavy|ultra>');
+  console.log('modes:', listModes().map((m) => m.id).join(', '));
   process.exit(0);
 }
 
 if (cmd === 'compress') {
   const file = readPositional(1);
   if (!file) throw new Error('Missing input file');
-  const profile = readArg('--profile') ?? 'lossless-light';
+  const mode = resolveMode();
   const outFile = readArg('--out');
-  const legendFile = readArg('--legend');
   const text = fs.readFileSync(file, 'utf8');
-  const result = compress(text, { profileId: profile });
+  const result = compress(text, { mode });
   if (outFile) fs.writeFileSync(outFile, result.output, 'utf8');
   else process.stdout.write(result.output);
-  if (legendFile && result.legend) fs.writeFileSync(legendFile, JSON.stringify(result.legend, null, 2), 'utf8');
-  process.exit(result.validation.passed ? 0 : 2);
-}
-
-if (cmd === 'decompress') {
-  const file = readPositional(1);
-  const legendFile = readArg('--legend');
-  if (!file || !legendFile) throw new Error('Need input file and --legend');
-  const text = fs.readFileSync(file, 'utf8');
-  const legend = JSON.parse(fs.readFileSync(legendFile, 'utf8')) as Record<string, string>;
-  const output = decompress(text, legend);
-  const outFile = readArg('--out');
-  if (outFile) fs.writeFileSync(outFile, output, 'utf8');
-  else process.stdout.write(output);
-  process.exit(0);
+  process.exit(result.error ? 2 : 0);
 }
 
 if (cmd === 'batch') {
   const dir = readPositional(1);
-  const profile = readArg('--profile') ?? 'docs-readme';
+  const mode = resolveMode();
   if (!dir) throw new Error('Missing directory');
   const files = fs.readdirSync(dir).filter((f: string) => fs.statSync(path.join(dir, f)).isFile());
   for (const file of files) {
     const full = path.join(dir, file);
     const text = fs.readFileSync(full, 'utf8');
-    const result = compress(text, { profileId: profile });
-    console.log(`${file}\t${result.metrics.originalChars}\t${result.metrics.outputChars}\t${result.validation.passed ? 'ok' : 'failed'}`);
+    const result = compress(text, { mode });
+    console.log(`${file}\t${result.metrics.originalChars}\t${result.metrics.outputChars}\t${result.error ? 'failed' : 'ok'}`);
   }
   process.exit(0);
 }

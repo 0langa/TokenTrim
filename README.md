@@ -1,93 +1,66 @@
 # TokenTrim
 
-TokenTrim is a local-first web app for shrinking AI-agent context safely.
+TokenTrim is a local-first web app for shrinking AI-agent context.
 
-It runs entirely in-browser (plus optional local CLI), with no telemetry and no AI calls.
+It runs fully in-browser (plus optional local CLI), with no telemetry and no AI calls.
 
-## v1 Focus
+## v1.1 Direction
 
-- Safe-by-default compression that still gives noticeable token reduction
-- Clear separation between reversible and lossy modes
-- Practical reporting so users can verify what changed before using output
+TokenTrim now uses exactly four one-way compression modes:
+- `Light`
+- `Normal`
+- `Heavy`
+- `Ultra`
 
-## Guarantees
+No decode/restore path in mainline UX. If output quality is not suitable, keep the original input.
 
-- Reversible profiles (`lossless-light`, `lossless-dict`) validate normalized roundtrip.
-- Lossy profiles are always labeled one-way and risk-scored.
-- Protected spans are never transformed.
-- If reversible validation fails, TokenTrim fails closed and returns original input.
+## Modes
 
-Normalization baseline: line ending normalization, trailing whitespace cleanup, blank-line compaction, and multi-space cleanup.
+| Mode | Style | Risk | Expected token savings |
+|---|---|---|---|
+| Light | Safe structural + minimal rewrite | safe | 8-18% |
+| Normal | Balanced concise rewrite | low | 18-32% |
+| Heavy | Aggressive syntax compression | medium | 30-45% |
+| Ultra | Max caveman-style telegraphic | high | 35-55% |
 
-## Profiles
+## Protected spans
 
-| Profile | Reversible | Risk | Guidance | Expected token savings |
-|---|---:|---|---|---:|
-| `lossless-light` | yes | safe | Best for prompts requiring safe normalization | 4-12% |
-| `lossless-dict` | yes | low | Repetitive context; requires legend | 8-22% |
-| `docs-readme` | no | low | Best for docs/README | 8-20% |
-| `codebase-context` | no | medium | Best for engineering context | 10-24% |
-| `meeting-notes` | no | medium | Best for dense meeting notes | 12-26% |
-| `lossy-prose` | no | medium | General text simplification | 12-28% |
-| `lossy-agent` | no | high | Advanced aggressive shortening | 20-40% |
-| `research-notes` | no | low | Conservative citation-aware notes | 6-16% |
-| `spec` | no | low | Conservative requirements text | 5-14% |
-| `chat-history` | no | medium | Long conversation compression | 12-30% |
-
-## Protected Spans
-
-Transforms do not run inside:
-
-- fenced code / inline code
-- URLs / file paths / CLI commands
-- env vars / API-like placeholders
+Transforms never run inside protected spans:
+- code blocks / inline code
+- URLs / paths / CLI commands
+- env vars / API-like keys
 - numbers+units
-- JSON / YAML / TOML fenced blocks
-- Markdown tables / headings
+- fenced JSON/YAML/TOML
+- markdown tables/headings
 - emails / quoted strings
 
-## Browser Usage
+## Browser usage
 
-1. Pick a profile (default: `lossless-light`).
-2. Paste text or load a sample/file.
-3. Review metrics + “What Changed” report + diff preview.
-4. Copy or download output (and legend when applicable).
+1. Select mode (`Light/Normal/Heavy/Ultra`).
+2. Paste text or upload files.
+3. Review token/char savings and rewrite report.
+4. Download output as `.txt`, `.md`, or `.json`.
 
-Batch mode supports `.txt`, `.md`, `.json`, `.yaml`, `.yml`, `.toml`, `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.css`, `.html`.
-
-## Decode / Restore
-
-Decode/Restore supports reversible outputs with a valid legend JSON.
-Lossy outputs are explicitly one-way and will not be presented as restorable.
+Batch mode supports:
+`.txt`, `.md`, `.json`, `.yaml`, `.yml`, `.toml`, `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.css`, `.html`.
 
 ## API
 
 ```ts
-compress(text, options)
-decompress(text, legend)
+compress(text, { mode, tokenizer })
 estimateTokens(text, tokenizer)
-listProfiles()
+listModes()
 ```
 
-Stable result fields for v1 UI/API consumers include:
-- `reversible`
-- `validation.validationKind`
-- `warnings`
-- `report.riskEvents`
-- `metrics.netCharSavingsIncludingLegend`
-
-## CLI (beta local helper)
+## CLI
 
 ```bash
-tokentrim compress file.md --profile docs-readme
-tokentrim compress file.md --profile lossless-dict --out file.trim.md --legend file.legend.json
-tokentrim decompress file.trim.md --legend file.legend.json
-tokentrim batch ./docs --profile codebase-context
+tokentrim compress file.md --mode heavy
+tokentrim batch ./docs --mode ultra
 ```
 
-## Token Estimate Caveat
-
-Current tokenizer mode is `approx-generic`; token counts are estimates, not exact model-token counts.
+Compatibility shim for one release cycle:
+- `--profile` is accepted and mapped to one of the four modes with a warning.
 
 ## Development
 
@@ -98,16 +71,3 @@ npm run typecheck
 npm run test
 npm run build
 ```
-
-## Deployment
-
-- GitHub Pages workflow enforces lint/typecheck/test/build before deploy.
-- `dist/404.html` is generated for SPA fallback.
-- `netlify.toml` included for optional Netlify deployment with cache headers and SPA redirect.
-
-## Roadmap
-
-- Optional exact GPT-compatible tokenizer package integration
-- Custom rule editor/import-export
-- Batch zip export
-- Larger virtualized diff UI

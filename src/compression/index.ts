@@ -1,9 +1,8 @@
-export { compress, decompress, listProfiles, estimateTokens } from './pipeline';
+export { compress, listModes, estimateTokens } from './pipeline';
 export type {
-  CompressionLegend,
+  CompressionMode,
+  CompressionModeMeta,
   CompressionOptions,
-  CompressionProfile,
   CompressionRequest,
   CompressionResult,
-  ValidationResult,
 } from './types';
