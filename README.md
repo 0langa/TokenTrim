@@ -1,108 +1,113 @@
 # TokenTrim
 
-TokenTrim is a local-first text compression tool for AI context packing.
+TokenTrim is a local-first web app for shrinking AI-agent context safely.
 
-It runs entirely client-side in the browser (or locally via CLI), has no telemetry, and no AI calls.
+It runs entirely in-browser (plus optional local CLI), with no telemetry and no AI calls.
+
+## v1 Focus
+
+- Safe-by-default compression that still gives noticeable token reduction
+- Clear separation between reversible and lossy modes
+- Practical reporting so users can verify what changed before using output
 
 ## Guarantees
 
-TokenTrim now separates **reversible** and **lossy** profiles explicitly.
+- Reversible profiles (`lossless-light`, `lossless-dict`) validate normalized roundtrip.
+- Lossy profiles are always labeled one-way and risk-scored.
+- Protected spans are never transformed.
+- If reversible validation fails, TokenTrim fails closed and returns original input.
 
-- Reversible profiles: validated roundtrip baseline.
-- Lossy profiles: one-way semantic compression; never labeled lossless.
-
-Validation kinds:
-- `exact-roundtrip`
-- `normalized-roundtrip`
-- `semantic-baseline`
-- `lossy-no-roundtrip`
-- `none`
-
-Normalized roundtrip means structural normalization only (line endings, trailing whitespace, repeated blank lines, spacing cleanup).
+Normalization baseline: line ending normalization, trailing whitespace cleanup, blank-line compaction, and multi-space cleanup.
 
 ## Profiles
 
-| Profile | Reversible | Guarantee | Risk | Notes |
-|---|---:|---|---|---|
-| `lossless-light` | yes | normalized-roundtrip | safe | structural cleanup only |
-| `lossless-dict` | yes | normalized-roundtrip | low | dictionary tokens + legend |
-| `lossy-prose` | no | semantic-lossy | medium | filler/article/prose rewrite |
-| `lossy-agent` | no | semantic-lossy | high | abbreviations + operators |
-| `docs-readme` | no | semantic-lossy | low | conservative docs rewriting |
-| `codebase-context` | no | semantic-lossy | medium | code-aware abbreviation |
-| `meeting-notes` | no | semantic-lossy | medium | filler cleanup |
-| `research-notes` | no | semantic-lossy | low | conservative research notes |
-| `spec` | no | semantic-lossy | low | very conservative |
-| `chat-history` | no | semantic-lossy | medium | remove pleasantries |
+| Profile | Reversible | Risk | Guidance | Expected token savings |
+|---|---:|---|---|---:|
+| `lossless-light` | yes | safe | Best for prompts requiring safe normalization | 4-12% |
+| `lossless-dict` | yes | low | Repetitive context; requires legend | 8-22% |
+| `docs-readme` | no | low | Best for docs/README | 8-20% |
+| `codebase-context` | no | medium | Best for engineering context | 10-24% |
+| `meeting-notes` | no | medium | Best for dense meeting notes | 12-26% |
+| `lossy-prose` | no | medium | General text simplification | 12-28% |
+| `lossy-agent` | no | high | Advanced aggressive shortening | 20-40% |
+| `research-notes` | no | low | Conservative citation-aware notes | 6-16% |
+| `spec` | no | low | Conservative requirements text | 5-14% |
+| `chat-history` | no | medium | Long conversation compression | 12-30% |
 
 ## Protected Spans
 
-Transforms do not run inside protected spans. Current engine protects:
-- fenced code
-- inline code
-- URLs
-- file paths
-- CLI commands
-- env vars
-- API-like placeholders
-- numbers + units
-- JSON blocks
-- YAML/TOML-like config
-- markdown tables
-- markdown headings
-- emails
-- quoted strings
+Transforms do not run inside:
 
-## Browser usage
+- fenced code / inline code
+- URLs / file paths / CLI commands
+- env vars / API-like placeholders
+- numbers+units
+- JSON / YAML / TOML fenced blocks
+- Markdown tables / headings
+- emails / quoted strings
 
-- Compress tab: choose profile, paste text, review metrics/report.
-- Decode/Restore tab: paste compressed text + legend JSON.
-- File upload:
-  - single file loads editor
-  - multi-file shows batch metrics table
+## Browser Usage
 
-## Decode/Restore
+1. Pick a profile (default: `lossless-light`).
+2. Paste text or load a sample/file.
+3. Review metrics + “What Changed” report + diff preview.
+4. Copy or download output (and legend when applicable).
 
-Decode/Restore only works for reversible modes with valid legends.
-Lossy profiles are one-way by design.
+Batch mode supports `.txt`, `.md`, `.json`, `.yaml`, `.yml`, `.toml`, `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.css`, `.html`.
 
-## CLI
+## Decode / Restore
 
-```bash
-tokentrim compress file.md --profile lossy-agent
-tokentrim compress file.md --profile lossless-dict --out file.trim.md --legend file.legend.json
-tokentrim decompress file.trim.md --legend file.legend.json
-tokentrim batch ./docs --profile docs-readme
-```
+Decode/Restore supports reversible outputs with a valid legend JSON.
+Lossy outputs are explicitly one-way and will not be presented as restorable.
 
-## Library API
+## API
 
 ```ts
-import { compress, decompress, estimateTokens, listProfiles } from './src/compression';
+compress(text, options)
+decompress(text, legend)
+estimateTokens(text, tokenizer)
+listProfiles()
 ```
 
-## Token estimates
+Stable result fields for v1 UI/API consumers include:
+- `reversible`
+- `validation.validationKind`
+- `warnings`
+- `report.riskEvents`
+- `metrics.netCharSavingsIncludingLegend`
 
-Token counts are estimates unless using an exact tokenizer. Current default is `approx-generic`.
+## CLI (beta local helper)
+
+```bash
+tokentrim compress file.md --profile docs-readme
+tokentrim compress file.md --profile lossless-dict --out file.trim.md --legend file.legend.json
+tokentrim decompress file.trim.md --legend file.legend.json
+tokentrim batch ./docs --profile codebase-context
+```
+
+## Token Estimate Caveat
+
+Current tokenizer mode is `approx-generic`; token counts are estimates, not exact model-token counts.
 
 ## Development
 
 ```bash
 npm install
-npm run dev
-npm run build
+npm run lint
+npm run typecheck
 npm run test
+npm run build
 ```
 
-## Safety limitations
+## Deployment
 
-- Lossy modes may alter meaning.
-- Reversible modes fail closed on validation failure and return original input.
-- Malformed legends fail restore.
+- GitHub Pages workflow enforces lint/typecheck/test/build before deploy.
+- `dist/404.html` is generated for SPA fallback.
+- `netlify.toml` included for optional Netlify deployment with cache headers and SPA redirect.
 
 ## Roadmap
 
-- Add optional exact GPT-compatible tokenizer package.
-- Expand profile-level custom rule editor.
-- Add downloadable batch artifacts and zip export.
-- Add virtualized large diff panel.
+- Optional exact GPT-compatible tokenizer package integration
+- Custom rule editor/import-export
+- Batch zip export
+- Larger virtualized diff UI

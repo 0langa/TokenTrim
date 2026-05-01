@@ -7,6 +7,7 @@ export function applyRules(
   transformId: string,
   risk: RiskLevel,
   rules: Rule[],
+  shouldReplace?: (match: string) => boolean,
 ): { output: string; stat: TransformStat; examples: TransformExample[] } {
   let output = input;
   const examples: TransformExample[] = [];
@@ -15,6 +16,9 @@ export function applyRules(
 
   for (const rule of rules) {
     output = output.replace(rule.pattern, (match) => {
+      if (shouldReplace && !shouldReplace(match)) {
+        return match;
+      }
       const after = rule.replacement;
       replacements += 1;
       charsSaved += Math.max(0, match.length - after.length);

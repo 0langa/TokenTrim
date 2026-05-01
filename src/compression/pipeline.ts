@@ -5,6 +5,7 @@ import type {
   CompressionLegend,
   CompressionOptions,
   CompressionResult,
+  ProtectedSpanStats,
   RiskEvent,
   TransformStat,
   ValidationResult,
@@ -14,6 +15,23 @@ import { articleRemoval } from './transforms/articleRemoval';
 import { proseRewrite } from './transforms/proseRewrite';
 import { abbreviationTransform } from './transforms/abbreviationTransform';
 import { operatorTransform } from './transforms/operatorTransform';
+
+const EMPTY_SPAN_STATS: ProtectedSpanStats = {
+  'fenced-code': 0,
+  'inline-code': 0,
+  url: 0,
+  'file-path': 0,
+  'cli-command': 0,
+  'env-var': 0,
+  'api-placeholder': 0,
+  'number-unit': 0,
+  'json-block': 0,
+  'yaml-toml': 0,
+  'markdown-table': 0,
+  'markdown-heading': 0,
+  email: 0,
+  'quoted-string': 0,
+};
 
 function normalizeStructural(text: string): string {
   return text
@@ -166,6 +184,77 @@ function buildValidation(
   return { passed: true, validationKind: 'none', baselineDescription: 'No validation configured.', warnings: [] };
 }
 
+function isConservativeProfile(profileId: string): boolean {
+  return profileId === 'spec' || profileId === 'research-notes';
+}
+
+function hasSensitiveSemantics(value: string): boolean {
+  return /\b(requirement|shall|must|never|not|no|cannot|>=|<=|less than|greater than|\d+)\b/i.test(value);
+}
+
+function applyRiskGuardrails(profileId: string, events: RiskEvent[]): RiskEvent[] {
+  if (!isConservativeProfile(profileId)) return events;
+  return events.filter((event) => !hasSensitiveSemantics(event.before));
+}
+
+function conservativeReplacementGuard(profileId: string): ((match: string) => boolean) | undefined {
+  if (!isConservativeProfile(profileId)) return undefined;
+  return (match: string) => !hasSensitiveSemantics(match);
+}
+
+function buildDiffPreview(stats: TransformStat[]): Array<{ kind: 'remove' | 'replace'; before: string; after?: string }> {
+  const preview: Array<{ kind: 'remove' | 'replace'; before: string; after?: string }> = [];
+  for (const stat of stats) {
+    for (const example of stat.examples) {
+      if (preview.length >= 24) return preview;
+      if (example.after === '') {
+        preview.push({ kind: 'remove', before: example.before.slice(0, 80) });
+      } else {
+        preview.push({ kind: 'replace', before: example.before.slice(0, 80), after: example.after.slice(0, 80) });
+      }
+    }
+  }
+  return preview;
+}
+
+function emptyResult(text: string, profileId: string, originalWords: number, tokenizerKind: CompressionOptions['tokenizer'] = 'approx-generic'): CompressionResult {
+  const tokens = estimateTokens(text, tokenizerKind ?? 'approx-generic').estimatedTokens;
+  return {
+    output: text,
+    legend: null,
+    reversible: false,
+    profileId,
+    validation: { passed: false, validationKind: 'none', baselineDescription: 'Invalid profile.', warnings: ['Invalid profile.'] },
+    metrics: {
+      originalChars: text.length,
+      outputChars: text.length,
+      charSavings: 0,
+      originalWords,
+      outputWords: originalWords,
+      estimatedTokensBefore: tokens,
+      estimatedTokensAfter: tokens,
+      estimatedTokenSavings: 0,
+      legendOverhead: 0,
+      netCharSavingsIncludingLegend: 0,
+      tokenizerUsed: tokenizerKind ?? 'approx-generic',
+    },
+    report: {
+      transformStats: [],
+      removedPhrases: [],
+      replacedPhrases: [],
+      abbreviationHits: 0,
+      operatorHits: 0,
+      protectedSpanStats: EMPTY_SPAN_STATS,
+      dictionaryEntries: 0,
+      bpeEntries: 0,
+      riskEvents: [],
+      diffPreview: [],
+    },
+    warnings: ['Unknown profile ID.'],
+    error: 'Unknown profile ID.',
+  };
+}
+
 export function compress(text: string, options: CompressionOptions): CompressionResult {
   const profile = getProfile(options.profileId);
   const originalChars = text.length;
@@ -175,41 +264,7 @@ export function compress(text: string, options: CompressionOptions): Compression
   const riskEvents: RiskEvent[] = [];
 
   if (!profile) {
-    return {
-      output: text,
-      legend: null,
-      reversible: false,
-      profileId: options.profileId,
-      validation: { passed: false, validationKind: 'none', baselineDescription: 'Invalid profile.', warnings: ['Invalid profile.'] },
-      metrics: {
-        originalChars,
-        outputChars: text.length,
-        charSavings: 0,
-        originalWords,
-        outputWords: originalWords,
-        estimatedTokensBefore: estimateTokens(text, tokenizerKind).estimatedTokens,
-        estimatedTokensAfter: estimateTokens(text, tokenizerKind).estimatedTokens,
-        estimatedTokenSavings: 0,
-        legendOverhead: 0,
-        netCharSavingsIncludingLegend: 0,
-        tokenizerUsed: tokenizerKind,
-      },
-      report: {
-        transformStats: [],
-        removedPhrases: [],
-        replacedPhrases: [],
-        abbreviationHits: 0,
-        operatorHits: 0,
-        protectedSpanStats: {
-          'fenced-code': 0,'inline-code': 0,url: 0,'file-path': 0,'cli-command': 0,'env-var': 0,'api-placeholder': 0,'number-unit': 0,'json-block': 0,'yaml-toml': 0,'markdown-table': 0,'markdown-heading': 0,email: 0,'quoted-string': 0,
-        },
-        dictionaryEntries: 0,
-        bpeEntries: 0,
-        riskEvents: [],
-      },
-      warnings: ['Unknown profile ID.'],
-      error: 'Unknown profile ID.',
-    };
+    return emptyResult(text, options.profileId, originalWords, tokenizerKind);
   }
 
   try {
@@ -234,13 +289,14 @@ export function compress(text: string, options: CompressionOptions): Compression
         stats.push(res.stat);
         riskEvents.push(...res.examples.map((ex) => ({ transformId, category: 'possible-meaning-change' as const, before: ex.before, after: ex.after })));
       } else if (transformId === 'article-removal') {
+        if (isConservativeProfile(profile.id)) continue;
         const res = articleRemoval(output);
         output = res.output;
         stats.push(res.stat);
         riskEvents.push(...res.examples.map((ex) => ({ transformId, category: 'wording-change' as const, before: ex.before, after: ex.after })));
       } else if (transformId.startsWith('prose-rewrite:')) {
         const pack = transformId.split(':')[1];
-        const res = proseRewrite(output, pack);
+        const res = proseRewrite(output, pack, conservativeReplacementGuard(profile.id));
         output = res.output;
         stats.push(res.stat);
         riskEvents.push(...res.examples.map((ex) => ({ transformId, category: 'wording-change' as const, before: ex.before, after: ex.after })));
@@ -250,6 +306,7 @@ export function compress(text: string, options: CompressionOptions): Compression
         stats.push(res.stat);
         riskEvents.push(...res.examples.map((ex) => ({ transformId, category: 'technical-term-adjacent-change' as const, before: ex.before, after: ex.after })));
       } else if (transformId === 'operator') {
+        if (isConservativeProfile(profile.id)) continue;
         const becauseMode = profile.id === 'lossy-agent' ? 'left-arrow' : 'bc';
         const res = operatorTransform(output, becauseMode);
         output = res.output;
@@ -297,7 +354,8 @@ export function compress(text: string, options: CompressionOptions): Compression
           protectedSpanStats: protectedRun.stats,
           dictionaryEntries: Object.keys(legend.tokenMap).length,
           bpeEntries: 0,
-          riskEvents,
+          riskEvents: applyRiskGuardrails(profile.id, riskEvents),
+          diffPreview: buildDiffPreview(stats),
         },
         warnings,
         error: 'Lossless validation failed.',
@@ -306,12 +364,17 @@ export function compress(text: string, options: CompressionOptions): Compression
 
     if (!profile.reversible) {
       warnings.push(...validation.warnings);
+      if (profile.advanced) {
+        warnings.push('Advanced lossy mode: review diff and risk events before using output.');
+      }
     }
 
     const outputChars = output.length;
     const outputWords = wordCount(output);
     const tokensBefore = estimateTokens(text, tokenizerKind).estimatedTokens;
     const tokensAfter = estimateTokens(output, tokenizerKind).estimatedTokens;
+
+    const filteredRiskEvents = applyRiskGuardrails(profile.id, riskEvents);
 
     return {
       output,
@@ -341,47 +404,20 @@ export function compress(text: string, options: CompressionOptions): Compression
         protectedSpanStats: protectedRun.stats,
         dictionaryEntries: Object.keys(legend.tokenMap).length,
         bpeEntries: 0,
-        riskEvents,
+        riskEvents: filteredRiskEvents,
+        diffPreview: buildDiffPreview(stats),
       },
       warnings,
     };
   } catch (error) {
     return {
-      output: text,
-      legend: null,
-      profileId: options.profileId,
+      ...emptyResult(text, options.profileId, originalWords, tokenizerKind),
       reversible: profile.reversible,
       validation: {
         passed: false,
         validationKind: profile.reversible ? 'normalized-roundtrip' : 'lossy-no-roundtrip',
         baselineDescription: 'Transform failed.',
         warnings: ['Transform failed; original preserved.'],
-      },
-      metrics: {
-        originalChars,
-        outputChars: text.length,
-        charSavings: 0,
-        originalWords,
-        outputWords: originalWords,
-        estimatedTokensBefore: estimateTokens(text, tokenizerKind).estimatedTokens,
-        estimatedTokensAfter: estimateTokens(text, tokenizerKind).estimatedTokens,
-        estimatedTokenSavings: 0,
-        legendOverhead: 0,
-        netCharSavingsIncludingLegend: 0,
-        tokenizerUsed: tokenizerKind,
-      },
-      report: {
-        transformStats: [],
-        removedPhrases: [],
-        replacedPhrases: [],
-        abbreviationHits: 0,
-        operatorHits: 0,
-        protectedSpanStats: {
-          'fenced-code': 0,'inline-code': 0,url: 0,'file-path': 0,'cli-command': 0,'env-var': 0,'api-placeholder': 0,'number-unit': 0,'json-block': 0,'yaml-toml': 0,'markdown-table': 0,'markdown-heading': 0,email: 0,'quoted-string': 0,
-        },
-        dictionaryEntries: 0,
-        bpeEntries: 0,
-        riskEvents: [],
       },
       warnings: ['Transform failure; original preserved.'],
       error: error instanceof Error ? error.message : String(error),

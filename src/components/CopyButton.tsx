@@ -3,14 +3,20 @@ import type { CompressionResult } from '../compression/types';
 
 interface Props {
   result: CompressionResult | null;
+  requireLossyConfirm: boolean;
 }
 
-export function CopyButton({ result }: Props) {
+export function CopyButton({ result, requireLossyConfirm }: Props) {
   const [copied, setCopied] = useState(false);
   const [copiedPlain, setCopiedPlain] = useState(false);
 
+  const ensureConfirmed = () => {
+    if (!requireLossyConfirm) return true;
+    return window.confirm('This profile is one-way and high-risk. Confirm you reviewed warnings/diff before copying output.');
+  };
+
   const handleCopyWithLegend = async () => {
-    if (!result) return;
+    if (!result || !ensureConfirmed()) return;
     const prefix = result.legend
       ? `=== TOKEN LEGEND JSON ===\n${JSON.stringify(result.legend, null, 2)}\n=== END TOKEN LEGEND JSON ===\n\n`
       : '';
@@ -20,7 +26,7 @@ export function CopyButton({ result }: Props) {
   };
 
   const handleCopyPlain = async () => {
-    if (!result) return;
+    if (!result || !ensureConfirmed()) return;
     await navigator.clipboard.writeText(result.output);
     setCopiedPlain(true);
     setTimeout(() => setCopiedPlain(false), 2000);

@@ -24,6 +24,10 @@ export type CompressionProfile = {
   enabledTransforms: string[];
   protectedSpanTypes: ProtectedSpanType[];
   normalization?: 'none' | 'light-structural';
+  audienceGuidance: string;
+  expectedSavingsPct: [number, number];
+  recommended: boolean;
+  advanced?: boolean;
 };
 
 export type CompressionLegend = {
@@ -97,6 +101,7 @@ export type CompressionReport = {
   dictionaryEntries: number;
   bpeEntries: number;
   riskEvents: RiskEvent[];
+  diffPreview: Array<{ kind: 'remove' | 'replace'; before: string; after?: string }>;
 };
 
 export type TokenizerKind = 'approx-generic';

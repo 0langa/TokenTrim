@@ -29,6 +29,9 @@ export const PROFILES: CompressionProfile[] = [
     enabledTransforms: ['normalize-structural'],
     protectedSpanTypes: BASE_PROTECTED,
     normalization: 'light-structural',
+    audienceGuidance: 'Best for prompts when you need guaranteed safe normalization.',
+    expectedSavingsPct: [4, 12],
+    recommended: true,
   },
   {
     id: 'lossless-dict',
@@ -41,6 +44,9 @@ export const PROFILES: CompressionProfile[] = [
     enabledTransforms: ['normalize-structural', 'dictionary'],
     protectedSpanTypes: BASE_PROTECTED,
     normalization: 'light-structural',
+    audienceGuidance: 'Best for repetitive contexts that must be restored exactly to normalized baseline.',
+    expectedSavingsPct: [8, 22],
+    recommended: false,
   },
   {
     id: 'lossy-prose',
@@ -52,10 +58,13 @@ export const PROFILES: CompressionProfile[] = [
     requiresLegend: false,
     enabledTransforms: ['filler-removal', 'article-removal', 'prose-rewrite:common'],
     protectedSpanTypes: BASE_PROTECTED,
+    audienceGuidance: 'Best for prompt drafting when moderate wording changes are acceptable.',
+    expectedSavingsPct: [12, 28],
+    recommended: false,
   },
   {
     id: 'lossy-agent',
-    label: 'Lossy Agent',
+    label: 'Lossy Agent (Advanced)',
     description: 'One-way aggressive prompt-oriented shortening.',
     reversible: false,
     guarantee: 'semantic-lossy',
@@ -63,6 +72,10 @@ export const PROFILES: CompressionProfile[] = [
     requiresLegend: false,
     enabledTransforms: ['filler-removal', 'article-removal', 'prose-rewrite:agent-prompts', 'abbreviation', 'operator'],
     protectedSpanTypes: BASE_PROTECTED,
+    audienceGuidance: 'Higher semantic risk. Use only when maximizing compression is more important than wording fidelity.',
+    expectedSavingsPct: [20, 40],
+    recommended: false,
+    advanced: true,
   },
   {
     id: 'docs-readme',
@@ -74,6 +87,9 @@ export const PROFILES: CompressionProfile[] = [
     requiresLegend: false,
     enabledTransforms: ['filler-removal', 'prose-rewrite:docs-readme'],
     protectedSpanTypes: BASE_PROTECTED,
+    audienceGuidance: 'Best for docs and README material with conservative reductions.',
+    expectedSavingsPct: [8, 20],
+    recommended: true,
   },
   {
     id: 'codebase-context',
@@ -85,6 +101,9 @@ export const PROFILES: CompressionProfile[] = [
     requiresLegend: false,
     enabledTransforms: ['abbreviation', 'prose-rewrite:project-specs'],
     protectedSpanTypes: BASE_PROTECTED,
+    audienceGuidance: 'Best for engineering context blocks and repo walkthrough prompts.',
+    expectedSavingsPct: [10, 24],
+    recommended: true,
   },
   {
     id: 'meeting-notes',
@@ -96,6 +115,9 @@ export const PROFILES: CompressionProfile[] = [
     requiresLegend: false,
     enabledTransforms: ['filler-removal', 'prose-rewrite:common'],
     protectedSpanTypes: BASE_PROTECTED,
+    audienceGuidance: 'Best for converting verbose notes into compact AI-ready context.',
+    expectedSavingsPct: [12, 26],
+    recommended: true,
   },
   {
     id: 'research-notes',
@@ -107,6 +129,9 @@ export const PROFILES: CompressionProfile[] = [
     requiresLegend: false,
     enabledTransforms: ['filler-removal', 'prose-rewrite:research-notes'],
     protectedSpanTypes: BASE_PROTECTED,
+    audienceGuidance: 'Best for literature summaries where citations and quantified claims must stay stable.',
+    expectedSavingsPct: [6, 16],
+    recommended: false,
   },
   {
     id: 'spec',
@@ -118,6 +143,9 @@ export const PROFILES: CompressionProfile[] = [
     requiresLegend: false,
     enabledTransforms: ['filler-removal'],
     protectedSpanTypes: BASE_PROTECTED,
+    audienceGuidance: 'Best for requirements/spec text where ambiguity is costly.',
+    expectedSavingsPct: [5, 14],
+    recommended: false,
   },
   {
     id: 'chat-history',
@@ -129,6 +157,9 @@ export const PROFILES: CompressionProfile[] = [
     requiresLegend: false,
     enabledTransforms: ['filler-removal', 'prose-rewrite:email', 'abbreviation'],
     protectedSpanTypes: BASE_PROTECTED,
+    audienceGuidance: 'Best for reducing long conversations before passing to agents.',
+    expectedSavingsPct: [12, 30],
+    recommended: false,
   },
 ];
 

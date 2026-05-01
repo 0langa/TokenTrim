@@ -34,6 +34,7 @@ export function MetricsBar({ result, processing }: Props) {
               ? `Reversible: ${result.validation.passed ? 'validated' : 'failed'}`
               : `Lossy: ${result.validation.validationKind}`}
           </span>
+          <span className="text-xs self-center text-slate-500">Tokenizer: {result.metrics.tokenizerUsed} (estimate)</span>
         </>
       ) : null}
     </div>

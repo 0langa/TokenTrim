@@ -29,6 +29,6 @@ const PACKS: Record<string, Rule[]> = {
   ],
 };
 
-export function proseRewrite(input: string, pack: string) {
-  return applyRules(input, `prose-rewrite:${pack}`, 'medium', PACKS[pack] ?? []);
+export function proseRewrite(input: string, pack: string, shouldReplace?: (match: string) => boolean) {
+  return applyRules(input, `prose-rewrite:${pack}`, 'medium', PACKS[pack] ?? [], shouldReplace);
 }
