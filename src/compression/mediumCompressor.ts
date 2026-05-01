@@ -1,9 +1,11 @@
 import { lightCompress } from './lightCompressor';
 
-// Token alphabet: printable ASCII symbols unlikely to appear in text
 const TOKEN_CHARS = '!@#$%^&*~`|<>';
 const MIN_PHRASE_LENGTH = 12;
 const MIN_OCCURRENCES = 3;
+const MIN_OCCURRENCES_LONG = 2;   // for phrases >= 30 chars
+const LONG_PHRASE_LENGTH = 30;
+const MAX_NGRAM = 8;
 
 function buildTokenChar(index: number): string {
   const base = TOKEN_CHARS.length;
@@ -20,9 +22,8 @@ export interface DictionaryResult {
 
 function extractPhrases(text: string): Map<string, number> {
   const counts = new Map<string, number>();
-  // Extract word n-grams (2–6 words) as candidate phrases
   const words = text.split(/\s+/);
-  for (let n = 2; n <= 6; n++) {
+  for (let n = 2; n <= MAX_NGRAM; n++) {
     for (let i = 0; i <= words.length - n; i++) {
       const phrase = words.slice(i, i + n).join(' ');
       if (phrase.length >= MIN_PHRASE_LENGTH) {
@@ -39,10 +40,14 @@ export function mediumCompress(raw: string): DictionaryResult {
 
   const counts = extractPhrases(text);
 
-  // Sort by savings: (phrase.length - token.length) * occurrences
   const candidates = [...counts.entries()]
-    .filter(([, count]) => count >= MIN_OCCURRENCES)
-    .sort(([a, ac], [b, bc]) => bc * b.length - ac * a.length);
+    .filter(([phrase, count]) =>
+      count >= MIN_OCCURRENCES ||
+      (count >= MIN_OCCURRENCES_LONG && phrase.length >= LONG_PHRASE_LENGTH)
+    )
+    .sort(([phraseA, countA], [phraseB, countB]) =>
+      (countB * (phraseB.length - 2)) - (countA * (phraseA.length - 2))
+    );
 
   let tokenIndex = 0;
   for (const [phrase] of candidates) {
@@ -56,7 +61,6 @@ export function mediumCompress(raw: string): DictionaryResult {
 }
 
 export function mediumDecompress(text: string, legend: Record<string, string>): string {
-  // Sort tokens longest-first to avoid partial replacement collisions
   const entries = Object.entries(legend).sort((a, b) => b[0].length - a[0].length);
   let result = text;
   for (const [token, phrase] of entries) {
