@@ -17,33 +17,25 @@ function Metric({ label, value }: { label: string; value: string }) {
 export function MetricsBar({ result, processing }: Props) {
   if (!result && !processing) return null;
 
-  const ratio = result ? `${(result.ratio * 100).toFixed(1)}%` : '—';
-  const saved = result ? `${((1 - result.ratio) * 100).toFixed(1)}%` : '—';
-  const origChars = result ? result.originalChars.toLocaleString() : '—';
-  const outChars = result ? result.outputChars.toLocaleString() : '—';
-  const origWords = result ? result.originalWords.toLocaleString() : '—';
-  const outWords = result ? result.outputWords.toLocaleString() : '—';
-
   return (
     <div className="flex flex-wrap justify-center gap-6 px-4 py-3 bg-slate-800 border-t border-slate-700">
       {processing ? (
         <span className="text-sm text-slate-400 animate-pulse">Compressing…</span>
-      ) : (
+      ) : result ? (
         <>
-          <Metric label="Size ratio" value={ratio} />
-          <Metric label="Saved" value={saved} />
-          <Metric label="Orig chars" value={origChars} />
-          <Metric label="Out chars" value={outChars} />
-          <Metric label="Orig words" value={origWords} />
-          <Metric label="Out words" value={outWords} />
-          {result && !result.passed && (
-            <span className="text-xs text-red-400 self-center">⚠ {result.error}</span>
-          )}
-          {result?.passed && (
-            <span className="text-xs text-emerald-400 self-center">✓ Parity OK</span>
-          )}
+          <Metric label="Orig chars" value={result.metrics.originalChars.toLocaleString()} />
+          <Metric label="Out chars" value={result.metrics.outputChars.toLocaleString()} />
+          <Metric label="Token before" value={result.metrics.estimatedTokensBefore.toLocaleString()} />
+          <Metric label="Token after" value={result.metrics.estimatedTokensAfter.toLocaleString()} />
+          <Metric label="Legend OH" value={result.metrics.legendOverhead.toLocaleString()} />
+          <Metric label="Net save" value={result.metrics.netCharSavingsIncludingLegend.toLocaleString()} />
+          <span className={`text-xs self-center ${result.reversible ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {result.reversible
+              ? `Reversible: ${result.validation.passed ? 'validated' : 'failed'}`
+              : `Lossy: ${result.validation.validationKind}`}
+          </span>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

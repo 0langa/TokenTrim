@@ -1,73 +1,108 @@
-# React + TypeScript + Vite
+# TokenTrim
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+TokenTrim is a local-first text compression tool for AI context packing.
 
-Currently, two official plugins are available:
+It runs entirely client-side in the browser (or locally via CLI), has no telemetry, and no AI calls.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Guarantees
 
-## React Compiler
+TokenTrim now separates **reversible** and **lossy** profiles explicitly.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Reversible profiles: validated roundtrip baseline.
+- Lossy profiles: one-way semantic compression; never labeled lossless.
 
-## Expanding the ESLint configuration
+Validation kinds:
+- `exact-roundtrip`
+- `normalized-roundtrip`
+- `semantic-baseline`
+- `lossy-no-roundtrip`
+- `none`
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Normalized roundtrip means structural normalization only (line endings, trailing whitespace, repeated blank lines, spacing cleanup).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Profiles
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+| Profile | Reversible | Guarantee | Risk | Notes |
+|---|---:|---|---|---|
+| `lossless-light` | yes | normalized-roundtrip | safe | structural cleanup only |
+| `lossless-dict` | yes | normalized-roundtrip | low | dictionary tokens + legend |
+| `lossy-prose` | no | semantic-lossy | medium | filler/article/prose rewrite |
+| `lossy-agent` | no | semantic-lossy | high | abbreviations + operators |
+| `docs-readme` | no | semantic-lossy | low | conservative docs rewriting |
+| `codebase-context` | no | semantic-lossy | medium | code-aware abbreviation |
+| `meeting-notes` | no | semantic-lossy | medium | filler cleanup |
+| `research-notes` | no | semantic-lossy | low | conservative research notes |
+| `spec` | no | semantic-lossy | low | very conservative |
+| `chat-history` | no | semantic-lossy | medium | remove pleasantries |
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Protected Spans
+
+Transforms do not run inside protected spans. Current engine protects:
+- fenced code
+- inline code
+- URLs
+- file paths
+- CLI commands
+- env vars
+- API-like placeholders
+- numbers + units
+- JSON blocks
+- YAML/TOML-like config
+- markdown tables
+- markdown headings
+- emails
+- quoted strings
+
+## Browser usage
+
+- Compress tab: choose profile, paste text, review metrics/report.
+- Decode/Restore tab: paste compressed text + legend JSON.
+- File upload:
+  - single file loads editor
+  - multi-file shows batch metrics table
+
+## Decode/Restore
+
+Decode/Restore only works for reversible modes with valid legends.
+Lossy profiles are one-way by design.
+
+## CLI
+
+```bash
+tokentrim compress file.md --profile lossy-agent
+tokentrim compress file.md --profile lossless-dict --out file.trim.md --legend file.legend.json
+tokentrim decompress file.trim.md --legend file.legend.json
+tokentrim batch ./docs --profile docs-readme
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Library API
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```ts
+import { compress, decompress, estimateTokens, listProfiles } from './src/compression';
 ```
+
+## Token estimates
+
+Token counts are estimates unless using an exact tokenizer. Current default is `approx-generic`.
+
+## Development
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run test
+```
+
+## Safety limitations
+
+- Lossy modes may alter meaning.
+- Reversible modes fail closed on validation failure and return original input.
+- Malformed legends fail restore.
+
+## Roadmap
+
+- Add optional exact GPT-compatible tokenizer package.
+- Expand profile-level custom rule editor.
+- Add downloadable batch artifacts and zip export.
+- Add virtualized large diff panel.
