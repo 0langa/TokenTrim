@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Intensity } from './compression/types';
 import { useCompression } from './hooks/useCompression';
 import { MetricsBar } from './components/MetricsBar';
@@ -14,11 +14,9 @@ export default function App() {
   const [input, setInput] = useState('');
   const [intensity, setIntensity] = useState<Intensity>('light');
   const { result, processing, run } = useCompression();
-  const prevIntensity = useRef(intensity);
 
   useEffect(() => {
     run(input, intensity);
-    prevIntensity.current = intensity;
   }, [input, intensity, run]);
 
   return (
@@ -49,6 +47,9 @@ export default function App() {
           <CopyButton result={result} />
         </div>
       </div>
+
+      {/* Metrics bar — pinned below toolbar so always visible */}
+      <MetricsBar result={result} processing={processing} />
 
       {/* Dual pane */}
       <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
@@ -136,8 +137,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Metrics bar */}
-      <MetricsBar result={result} processing={processing} />
     </div>
   );
 }

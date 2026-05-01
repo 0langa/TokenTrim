@@ -40,12 +40,16 @@ export function compress(text: string, intensity: Intensity): CompressionResult 
       const result = mediumCompress(text);
       output = result.text;
       legend = result.legend;
-      passed = parityCheck(text, output, (s) => mediumDecompress(s, result.legend));
+      // mediumCompress applies lightCompress first, so roundtrip recovers
+      // lightCompress(text), not text itself — compare against that baseline
+      const lightened = lightCompress(text);
+      passed = parityCheck(lightened, output, (s) => mediumDecompress(s, result.legend));
     } else {
       const result = heavyCompress(text);
       output = result.text;
       legend = result.legend;
-      passed = parityCheck(text, output, (s) => heavyDecompress(s, result.legend));
+      const lightened = lightCompress(text);
+      passed = parityCheck(lightened, output, (s) => heavyDecompress(s, result.legend));
     }
 
     if (!passed) {
