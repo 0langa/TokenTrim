@@ -51,6 +51,15 @@ export const MODES: CompressionModeMeta[] = [
     risk: 'high',
     advanced: true,
   },
+  {
+    id: 'custom',
+    label: 'Custom',
+    description: 'Choose exactly which transforms to apply.',
+    guidance: 'Full control — mix and match any combination.',
+    expectedSavingsPct: [0, 55],
+    risk: 'high',
+    advanced: true,
+  },
 ];
 
 export function listModes(): CompressionModeMeta[] {

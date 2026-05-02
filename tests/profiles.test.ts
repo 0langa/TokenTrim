@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { compress } from '../src/compression/pipeline';
 
 describe('mode mapping and one-way contract', () => {
-  it('supports exactly four modes', async () => {
+  it('supports exactly five modes including custom', async () => {
     const { listModes } = await import('../src/compression/pipeline');
-    expect(listModes().map((m) => m.id)).toEqual(['light', 'normal', 'heavy', 'ultra']);
+    expect(listModes().map((m) => m.id)).toEqual(['light', 'normal', 'heavy', 'ultra', 'custom']);
   });
 
   it('is deterministic for same input+mode', () => {

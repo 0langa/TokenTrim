@@ -56,6 +56,24 @@ function modeFromOptions(options: CompressionOptions): CompressionMode {
   return 'normal';
 }
 
+// NOTE: Keep this map in sync with TRANSFORM_REGISTRY defaultModes in transformRegistry.ts
+const PRESET_MAP: Record<string, CompressionMode[]> = {
+  'structured-data':      ['light', 'normal', 'heavy', 'ultra'],
+  'filler-removal':       ['normal', 'heavy', 'ultra'],
+  'numeric':              ['normal', 'heavy', 'ultra'],
+  'prose-rewrite:common': ['normal', 'heavy', 'ultra'],
+  'article-removal':      ['heavy', 'ultra'],
+  'abbreviation':         ['heavy', 'ultra'],
+  'operator':             ['heavy', 'ultra'],
+  'caveman-compaction':   ['heavy', 'ultra'],
+  'deduplication':        ['heavy', 'ultra'],
+};
+
+function shouldRun(id: string, mode: CompressionMode, enabled: string[] | undefined): boolean {
+  if (mode === 'custom') return enabled?.includes(id) ?? false;
+  return PRESET_MAP[id]?.includes(mode) ?? false;
+}
+
 function buildDiffPreview(stats: TransformStat[]): Array<{ kind: 'remove' | 'replace'; before: string; after?: string }> {
   const preview: Array<{ kind: 'remove' | 'replace'; before: string; after?: string }> = [];
   for (const stat of stats) {
@@ -142,6 +160,7 @@ export function compress(text: string, options: CompressionOptions): Compression
     const protectedRun = protectSpans(normalizeStructural(text), ALL_PROTECTED_SPANS);
     let output = protectedRun.text;
     const stats: TransformStat[] = [];
+    const et = options.enabledTransforms;
 
     const addEvents = (
       transformId: string,
@@ -151,8 +170,7 @@ export function compress(text: string, options: CompressionOptions): Compression
       riskEvents.push(...examples.map((ex) => ({ transformId, category, before: ex.before, after: ex.after })));
     };
 
-    // All modes: JSON minification (lossless)
-    {
+    if (shouldRun('structured-data', mode, et)) {
       const sd = structuredDataTransform(output);
       output = sd.output;
       if (sd.stat.replacements > 0) {
@@ -161,13 +179,14 @@ export function compress(text: string, options: CompressionOptions): Compression
       }
     }
 
-    if (mode !== 'light') {
+    if (shouldRun('filler-removal', mode, et)) {
       const fill = fillerRemoval(output);
       output = fill.output;
       stats.push(fill.stat);
       addEvents('filler-removal', 'wording-change', fill.examples);
+    }
 
-      // Numeric: written numbers → digits
+    if (shouldRun('numeric', mode, et)) {
       const num = numericTransform(output);
       output = num.output;
       if (num.stat.replacements > 0) {
@@ -176,35 +195,44 @@ export function compress(text: string, options: CompressionOptions): Compression
       }
     }
 
-    if (mode === 'normal' || mode === 'heavy' || mode === 'ultra') {
+    if (shouldRun('prose-rewrite:common', mode, et)) {
       const prose = proseRewrite(output, 'common');
       output = prose.output;
       stats.push(prose.stat);
       addEvents('prose-rewrite:common', 'wording-change', prose.examples);
     }
 
-    if (mode === 'heavy' || mode === 'ultra') {
+    if (shouldRun('article-removal', mode, et)) {
       const article = articleRemoval(output);
       output = article.output;
       stats.push(article.stat);
       addEvents('article-removal', 'wording-change', article.examples);
+    }
 
+    if (shouldRun('abbreviation', mode, et)) {
       const abbr = abbreviationTransform(output);
       output = abbr.output;
       stats.push(abbr.stat);
       addEvents('abbreviation', 'technical-term-adjacent-change', abbr.examples);
+    }
 
+    if (shouldRun('operator', mode, et)) {
       const op = operatorTransform(output, mode === 'ultra' ? 'left-arrow' : 'bc');
       output = op.output;
       stats.push(op.stat);
       addEvents('operator', 'possible-meaning-change', op.examples);
+    }
 
-      const caveman = applyCavemanCompaction(output, mode);
+    if (shouldRun('caveman-compaction', mode, et)) {
+      // Use 'ultra' ruleset only in ultra mode; 'heavy' for everything else (including custom)
+      const cavemanMode: CompressionMode = mode === 'ultra' ? 'ultra' : 'heavy';
+      const caveman = applyCavemanCompaction(output, cavemanMode);
       output = caveman.output;
       stats.push(caveman.stat);
       riskEvents.push(...caveman.events);
+    }
 
-      // Deduplication: remove repeated paragraphs
+    if (shouldRun('deduplication', mode, et)) {
       const dedup = deduplicationTransform(output);
       output = dedup.output;
       if (dedup.stat.replacements > 0) {

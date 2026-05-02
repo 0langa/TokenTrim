@@ -1,4 +1,4 @@
-export type CompressionMode = 'light' | 'normal' | 'heavy' | 'ultra';
+export type CompressionMode = 'light' | 'normal' | 'heavy' | 'ultra' | 'custom';
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';
 
@@ -91,6 +91,7 @@ export type CompressionOptions = {
   mode?: CompressionMode;
   profileId?: string;
   tokenizer?: TokenizerKind;
+  enabledTransforms?: string[]; // only used when mode === 'custom'
 };
 
 export type CompressionRequest = {
@@ -100,7 +101,7 @@ export type CompressionRequest = {
 
 export type CompressionModeMeta = {
   id: CompressionMode;
-  label: 'Light' | 'Normal' | 'Heavy' | 'Ultra';
+  label: 'Light' | 'Normal' | 'Heavy' | 'Ultra' | 'Custom';
   description: string;
   guidance: string;
   expectedSavingsPct: [number, number];

@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { useCompression } from './hooks/useCompression';
+import { useCustomTransforms } from './hooks/useCustomTransforms';
 import { MetricsBar } from './components/MetricsBar';
 import { IntensitySelector } from './components/IntensitySelector';
 import { CopyButton } from './components/CopyButton';
+import { DiffView } from './components/DiffView';
 import { compress } from './compression/pipeline';
 import type { CompressionMode, CompressionResult } from './compression/types';
 import { SAMPLE_INPUTS } from './data/samples';
 import { getModeMeta } from './compression/modes';
+import { computeWordDiff } from './lib/wordDiff';
 
 const INPUT_KEY = 'tokentrim:last-input';
 const MODE_KEY = 'tokentrim:last-mode';
@@ -26,8 +29,9 @@ type ExportFormat = 'txt' | 'md' | 'json';
 
 const PLACEHOLDER = `Paste text to compress.
 
-Modes: Light, Normal, Heavy, Ultra.
-Ultra maximizes savings with reduced readability.`;
+Modes: Light, Normal, Heavy, Ultra, Custom.
+Ultra maximizes savings with reduced readability.
+Custom lets you pick individual transforms.`;
 
 const SUPPORTED = new Set(['txt', 'md', 'json', 'yaml', 'yml', 'toml', 'ts', 'tsx', 'js', 'jsx', 'py', 'css', 'html']);
 
@@ -59,7 +63,7 @@ function outputForFormat(
 }
 
 function currentVersion(): string {
-  return 'v1.1.0';
+  return 'v1.2.0';
 }
 
 export default function App() {
@@ -68,6 +72,8 @@ export default function App() {
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [singleExportFormat, setSingleExportFormat] = useState<ExportFormat>('txt');
   const [batchExportFormat, setBatchExportFormat] = useState<ExportFormat>('txt');
+  const [rightPaneView, setRightPaneView] = useState<'output' | 'diff'>('output');
+  const [customTransforms, toggleCustomTransform] = useCustomTransforms();
   const { result, processing, run } = useCompression();
 
   useEffect(() => {
@@ -79,10 +85,19 @@ export default function App() {
   }, [mode]);
 
   useEffect(() => {
-    run(input, { mode, tokenizer: 'approx-generic' });
-  }, [input, mode, run]);
+    run(input, {
+      mode,
+      tokenizer: 'approx-generic',
+      ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}),
+    });
+  }, [input, mode, customTransforms, run]);
 
   const modeMeta = useMemo(() => getModeMeta(mode), [mode]);
+
+  const diffChunks = useMemo(() => {
+    if (rightPaneView !== 'diff' || !result) return null;
+    return computeWordDiff(input, result.output);
+  }, [rightPaneView, input, result]);
 
   async function onFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -96,7 +111,7 @@ export default function App() {
     const rows: BatchRow[] = [];
     for (const file of picked) {
       const text = await file.text();
-      const out = compress(text, { mode, tokenizer: 'approx-generic' });
+      const out = compress(text, { mode, tokenizer: 'approx-generic', ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}) });
       rows.push({
         filename: file.name,
         output: out.output,
@@ -159,13 +174,16 @@ export default function App() {
           </div>
         </div>
         <div>
-          <div className="text-slate-300 mb-1">Diff Preview</div>
-          <div className="max-h-28 overflow-auto text-slate-400">
-            {data.report.diffPreview.length === 0 ? 'No visible rewrites.' : data.report.diffPreview.map((line, idx) => (
-              <div key={`${line.before}-${idx}`}>
-                {line.kind === 'remove' ? `- ${line.before}` : `~ ${line.before} → ${line.after}`}
-              </div>
-            ))}
+          <div className="text-slate-300 mb-1">Transform Stats</div>
+          <div className="max-h-28 overflow-auto space-y-0.5 text-slate-500">
+            {data.report.transformStats.length === 0
+              ? 'No transforms applied.'
+              : data.report.transformStats.map((s) => (
+                  <div key={s.transformId} className="truncate">
+                    <span className="text-slate-400">{s.transformId}</span>
+                    {' '}{s.replacements} change{s.replacements !== 1 ? 's' : ''}, −{s.charsSaved} chars
+                  </div>
+                ))}
           </div>
         </div>
       </div>
@@ -182,67 +200,116 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-4 px-6 py-3 bg-slate-800 border-b border-slate-700">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 uppercase tracking-wider">Mode</span>
-          <IntensitySelector value={mode} onChange={setMode} />
+      <div className="flex flex-wrap items-start gap-4 px-6 py-3 bg-slate-800 border-b border-slate-700">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 uppercase tracking-wider mt-2">Mode</span>
+          <IntensitySelector
+            value={mode}
+            onChange={setMode}
+            enabledTransforms={customTransforms}
+            onTransformToggle={toggleCustomTransform}
+          />
         </div>
-        <select
-          className="px-2 py-1 rounded bg-slate-700 text-xs"
-          onChange={(e) => {
-            const sample = SAMPLE_INPUTS.find((s) => s.id === e.target.value);
-            if (sample) setInput(sample.text);
-          }}
-          defaultValue=""
-        >
-          <option value="" disabled>Load sample input</option>
-          {SAMPLE_INPUTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-        </select>
-        <input type="file" multiple onChange={(e) => void onFilesSelected(e.target.files)} className="text-xs" />
-        <button className="text-xs px-2 py-1 rounded bg-slate-700" onClick={clearLocalState}>Clear local data</button>
-        <div className="ml-auto">
-          <CopyButton result={result} requireUltraConfirm={mode === 'ultra'} />
+        <div className="flex flex-wrap items-center gap-4 mt-1">
+          <select
+            className="px-2 py-1 rounded bg-slate-700 text-xs"
+            onChange={(e) => {
+              const sample = SAMPLE_INPUTS.find((s) => s.id === e.target.value);
+              if (sample) setInput(sample.text);
+            }}
+            defaultValue=""
+          >
+            <option value="" disabled>Load sample input</option>
+            {SAMPLE_INPUTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          <input type="file" multiple onChange={(e) => void onFilesSelected(e.target.files)} className="text-xs" />
+          <button className="text-xs px-2 py-1 rounded bg-slate-700" onClick={clearLocalState}>Clear local data</button>
+        </div>
+        <div className="ml-auto mt-1">
+          <CopyButton result={result} requireUltraConfirm={mode === 'ultra' || mode === 'custom'} />
         </div>
       </div>
 
       <MetricsBar result={result} processing={processing} />
 
       <div className="px-6 py-2 text-xs text-slate-400 border-b border-slate-800">
-        {modeMeta.description} | {modeMeta.guidance} | Expected token savings: {modeMeta.expectedSavingsPct[0]}-{modeMeta.expectedSavingsPct[1]}%
+        {modeMeta.description} | {modeMeta.guidance} | Expected token savings: {modeMeta.expectedSavingsPct[0]}–{modeMeta.expectedSavingsPct[1]}%
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder={PLACEHOLDER} className="flex-1 p-4 bg-slate-900 border-r border-slate-700 text-sm font-mono" />
+        {/* Left pane: input */}
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={PLACEHOLDER}
+          className="flex-1 p-4 bg-slate-900 border-r border-slate-700 text-sm font-mono resize-none"
+        />
+
+        {/* Right pane: output or diff */}
         <div
-          className="flex-1 overflow-auto p-4 text-sm font-mono whitespace-pre-wrap"
+          className="flex-1 flex flex-col overflow-hidden"
           onDrop={(e) => void onDrop(e)}
           onDragOver={(e) => e.preventDefault()}
         >
-          {result?.output ?? ''}
-          {result?.warnings.length ? <div className="mt-4 text-amber-400">{result.warnings.join(' | ')}</div> : null}
-          {result?.error ? <div className="mt-4 text-red-400">{result.error}</div> : null}
-          {result ? (
-            <div className="mt-3 ml-2 inline-flex items-center gap-2">
-              <select
-                value={singleExportFormat}
-                onChange={(e) => setSingleExportFormat(e.target.value as ExportFormat)}
-                className="text-xs px-2 py-1 bg-slate-700 rounded"
-              >
-                <option value="txt">.txt</option>
-                <option value="md">.md</option>
-                <option value="json">.json</option>
-              </select>
-              <button
-                className="text-xs px-2 py-1 bg-slate-700 rounded"
-                onClick={() => {
-                  const payload = outputForFormat({ output: result.output, mode: result.mode }, singleExportFormat);
-                  download(payload.filename, payload.content);
-                }}
-              >
-                Download output
-              </button>
-            </div>
-          ) : null}
+          {/* Tab toggle */}
+          <div className="flex border-b border-slate-700 bg-slate-900 shrink-0">
+            <button
+              onClick={() => setRightPaneView('output')}
+              className={`px-4 py-2 text-xs font-medium transition-colors ${
+                rightPaneView === 'output'
+                  ? 'text-slate-100 border-b-2 border-violet-400 -mb-px'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Output
+            </button>
+            <button
+              onClick={() => setRightPaneView('diff')}
+              disabled={!result}
+              className={`px-4 py-2 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                rightPaneView === 'diff'
+                  ? 'text-slate-100 border-b-2 border-violet-400 -mb-px'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Diff
+            </button>
+          </div>
+
+          {/* Pane content */}
+          <div className="flex-1 overflow-auto">
+            {rightPaneView === 'diff' && diffChunks ? (
+              <DiffView chunks={diffChunks} />
+            ) : (
+              <div className="p-4 text-sm font-mono whitespace-pre-wrap">
+                {result?.output ?? ''}
+                {result?.warnings.length ? <div className="mt-4 text-amber-400">{result.warnings.join(' | ')}</div> : null}
+                {result?.error ? <div className="mt-4 text-red-400">{result.error}</div> : null}
+                {result ? (
+                  <div className="mt-3 inline-flex items-center gap-2">
+                    <select
+                      value={singleExportFormat}
+                      onChange={(e) => setSingleExportFormat(e.target.value as ExportFormat)}
+                      className="text-xs px-2 py-1 bg-slate-700 rounded"
+                    >
+                      <option value="txt">.txt</option>
+                      <option value="md">.md</option>
+                      <option value="json">.json</option>
+                    </select>
+                    <button
+                      className="text-xs px-2 py-1 bg-slate-700 rounded"
+                      onClick={() => {
+                        const payload = outputForFormat({ output: result.output, mode: result.mode }, singleExportFormat);
+                        download(payload.filename, payload.content);
+                      }}
+                    >
+                      Download output
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -289,7 +356,7 @@ export default function App() {
       ) : null}
 
       <footer className="border-t border-slate-800 px-6 py-3 text-[11px] text-slate-500">
-        One-way compression only. Light/Normal favor readability; Heavy/Ultra favor token savings. Privacy: all processing is local in your browser.
+        One-way compression only. Light/Normal favor readability; Heavy/Ultra favor token savings. Custom: full control. Privacy: all processing is local in your browser.
       </footer>
     </div>
   );
