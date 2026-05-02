@@ -1,73 +1,69 @@
 # TokenTrim
 
-TokenTrim is a local-first web app for shrinking AI-agent context.
+TokenTrim is a local-first context compression toolkit for AI workflows.
 
-It runs fully in-browser (plus optional local CLI), with no telemetry and no AI calls.
+## Current Architecture
 
-## v1.1 Direction
+- Modes: `light`, `normal`, `heavy`, `ultra`, `custom`
+- Profiles: `general`, `agent-context`, `repo-context`, `logs`, `markdown-docs`, `chat-history`
+- Tokenizers:
+  - `approx-generic` (always available)
+  - `openai-cl100k` / `openai-o200k` adapter kinds with deterministic fallback when exact tokenizer is unavailable
+- Features:
+  - executable transform registry
+  - semantic safety validation with per-transform rejection
+  - target token budget optimization
+  - structured JSON reporting
+  - browser + CLI support
 
-TokenTrim now uses exactly four one-way compression modes:
-- `Light`
-- `Normal`
-- `Heavy`
-- `Ultra`
-
-No decode/restore path in mainline UX. If output quality is not suitable, keep the original input.
-
-## Modes
-
-| Mode | Style | Risk | Expected token savings |
-|---|---|---|---|
-| Light | Safe structural + minimal rewrite | safe | 8-18% |
-| Normal | Balanced concise rewrite | low | 18-32% |
-| Heavy | Aggressive syntax compression | medium | 30-45% |
-| Ultra | Max caveman-style telegraphic | high | 35-55% |
-
-## Protected spans
-
-Transforms never run inside protected spans:
-- code blocks / inline code
-- URLs / paths / CLI commands
-- env vars / API-like keys
-- numbers+units
-- fenced JSON/YAML/TOML
-- markdown tables/headings
-- emails / quoted strings
-
-## Browser usage
-
-1. Select mode (`Light/Normal/Heavy/Ultra`).
-2. Paste text or upload files.
-3. Review token/char savings and rewrite report.
-4. Download output as `.txt`, `.md`, or `.json`.
-
-Batch mode supports:
-`.txt`, `.md`, `.json`, `.yaml`, `.yml`, `.toml`, `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.css`, `.html`.
-
-## API
+## Core API
 
 ```ts
-compress(text, { mode, tokenizer })
+compress(text, { mode, profile, tokenizer, targetTokens, maxRisk, enabledTransforms })
+optimizeToBudget(text, options)
 estimateTokens(text, tokenizer)
 listModes()
+listProfiles()
+createCompressionReport(result)
 ```
 
-## CLI
+## CLI examples
 
 ```bash
-tokentrim compress file.md --mode heavy
-tokentrim batch ./docs --mode ultra
+tokentrim compress file.md --mode heavy --profile agent-context --target-tokens 8000 --out file.trim.md
+tokentrim batch ./docs --recursive --out ./trimmed --profile markdown-docs --report yes
+tokentrim report file.md --mode normal --out report.json
+tokentrim stdin --mode normal
 ```
 
-Compatibility shim for one release cycle:
-- `--profile` is accepted and mapped to one of the four modes with a warning.
+Supported CLI flags:
+- `--mode light|normal|heavy|ultra|custom`
+- `--profile general|agent-context|repo-context|logs|markdown-docs|chat-history`
+- `--target-tokens <n>`
+- `--max-risk safe|low|medium|high`
+- `--tokenizer approx-generic|openai-cl100k|openai-o200k`
+- `--enabled-transforms id1,id2,...`
+- `--out <path>`
+- `--report <path or any truthy value in batch mode>`
+- `--recursive`
+- `--dry-run`
+
+## Safety model
+
+After each transform, TokenTrim validates semantic integrity for:
+- negations and requirement markers
+- numbers, dates, semver
+- URLs and file paths
+- code identifiers (warning level)
+- protected span continuity
+
+Unsafe transform outputs are rejected and recorded.
 
 ## Development
 
 ```bash
 npm install
-npm run lint
-npm run typecheck
-npm run test
 npm run build
+npm run test
+npm run lint
 ```

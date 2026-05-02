@@ -1,21 +1,25 @@
-# v1.0.0 Release Checklist
+# v1.3.0 Release Checklist
 
-## Quality gates
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
-- [ ] `npm run test`
+## Validation Gates
 - [ ] `npm run build`
-- [ ] Manual browser smoke: paste -> compress -> review report -> copy/export -> decode/restore
-- [ ] Manual batch smoke: multi-file load and per-file output/legend export
+- [ ] `npm run test`
+- [ ] `npm run lint`
 
-## Safety checks
-- [ ] Reversible profiles show normalized-roundtrip validation
-- [ ] Lossy profiles never claim reversibility
-- [ ] Advanced lossy profile (`lossy-agent`) shows explicit one-way warning before copy
+## Safety Verification
 - [ ] Protected spans remain unchanged in representative samples
+- [ ] Semantic safety issues are detected and surfaced
+- [ ] Unsafe transforms are rejected and recorded in result metadata
+- [ ] Markdown paragraphs/lists/code fences are preserved
 
-## Release prep
-- [ ] Update README profile table if profile behavior changed
-- [ ] Update CHANGELOG.md
-- [ ] Tag release (`v1.0.0`)
-- [ ] Confirm GitHub Pages deploy success
+## Feature Verification
+- [ ] Mode + profile + tokenizer controls work in UI
+- [ ] Target token budget signals reached/not reached
+- [ ] CLI `compress`, `batch`, `report`, and `stdin` commands work
+- [ ] Batch recursive output writing works with `--out`
+- [ ] JSON report export includes transforms, safety issues, rejected transforms, and tokenizer metadata
+
+## Release Prep
+- [ ] README/API examples reflect current CLI/options
+- [ ] CHANGELOG updated
+- [ ] Tag release (`v1.3.0`)
+- [ ] Confirm deployment workflow success
