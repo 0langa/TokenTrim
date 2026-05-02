@@ -134,22 +134,36 @@ export default function App() {
         <div>
           <div className="text-slate-300 mb-1">Mode Summary</div>
           <div>{getModeMeta(data.mode).description}</div>
-          <div className="text-slate-400">Expected token savings: {modeMeta.expectedSavingsPct[0]}-{modeMeta.expectedSavingsPct[1]}%</div>
+          <div className="text-slate-400">Expected savings: {modeMeta.expectedSavingsPct[0]}–{modeMeta.expectedSavingsPct[1]}%</div>
           <div className="mt-2 text-slate-500">Char savings: {data.metrics.charSavings}</div>
           <div className="text-slate-500">Token savings: {data.metrics.estimatedTokenSavings}</div>
         </div>
         <div>
           <div className="text-slate-300 mb-1">What Changed</div>
           <div className="text-slate-400">Removed: {topRemoved.length ? topRemoved.join(' | ') : 'none'}</div>
-          <div className="text-slate-400 mt-1">Replaced: {topReplaced.length ? topReplaced.map((x) => `${x.before}->${x.after}`).join(' | ') : 'none'}</div>
-          <div className="mt-1 text-slate-500">Risk events: {data.report.riskEvents.length}</div>
+          <div className="text-slate-400 mt-1">Replaced: {topReplaced.length ? topReplaced.map((x) => `${x.before}→${x.after}`).join(' | ') : 'none'}</div>
+          <div className="mt-2 max-h-20 overflow-auto space-y-0.5">
+            {data.report.riskEvents.slice(0, 8).map((ev, i) => {
+              const color = ev.category === 'safe-structural-cleanup'
+                ? 'text-green-400'
+                : ev.category === 'wording-change'
+                  ? 'text-yellow-400'
+                  : 'text-red-400';
+              return (
+                <div key={i} className={`${color} truncate`}>
+                  {ev.before || '∅'} → {ev.after || '∅'}
+                </div>
+              );
+            })}
+            {data.report.riskEvents.length === 0 && <span className="text-slate-500">No events.</span>}
+          </div>
         </div>
         <div>
-          <div className="text-slate-300 mb-1">Diff Preview (truncated)</div>
+          <div className="text-slate-300 mb-1">Diff Preview</div>
           <div className="max-h-28 overflow-auto text-slate-400">
             {data.report.diffPreview.length === 0 ? 'No visible rewrites.' : data.report.diffPreview.map((line, idx) => (
               <div key={`${line.before}-${idx}`}>
-                {line.kind === 'remove' ? `- ${line.before}` : `~ ${line.before} -> ${line.after}`}
+                {line.kind === 'remove' ? `- ${line.before}` : `~ ${line.before} → ${line.after}`}
               </div>
             ))}
           </div>

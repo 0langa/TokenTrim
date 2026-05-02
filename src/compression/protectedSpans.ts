@@ -5,7 +5,7 @@ const PATTERNS: Record<ProtectedSpanType, RegExp> = {
   'inline-code': /`[^`\n]+`/g,
   url: /https?:\/\/[^\s)\]>"']+/g,
   'file-path': /\b(?:[A-Za-z]:\\[^\s]+|(?:\.\.?\/)?(?:[\w.-]+\/)+[\w.-]+)\b/g,
-  'cli-command': /(?:^|\n)\s*(?:\$|>)\s*[^\n]+/g,
+  'cli-command': /(?:^|\n)\s*(?:\$\s+|>\s+)[^\n]+/g,
   'env-var': /\$[A-Z_][A-Z0-9_]*|\b[A-Z_][A-Z0-9_]*=[^\s]+/g,
   'api-placeholder': /\b(?:sk|pk|api|token|key)_[A-Za-z0-9_-]{8,}\b/gi,
   'number-unit': /\b\d+(?:\.\d+)?\s?(?:ms|s|sec|min|h|hr|day|days|kb|mb|gb|tb|%|x)\b/gi,
@@ -13,7 +13,7 @@ const PATTERNS: Record<ProtectedSpanType, RegExp> = {
   'yaml-toml': /```(?:ya?ml|toml)[\s\S]*?```/gi,
   'markdown-table': /(?:^|\n)\|.+\|\n\|[-:| ]+\|(?:\n\|.*\|)*/g,
   'markdown-heading': /^#{1,6}\s.+$/gm,
-  email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
+  email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/g,
   'quoted-string': /"[^"\n]{3,}"|'[^'\n]{3,}'/g,
 };
 

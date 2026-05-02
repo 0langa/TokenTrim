@@ -10,7 +10,7 @@
     "dev": "vite",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
-    "build:pages": "npm run build && node -e \"require('fs').copyFileSync('dist/index.html','dist/404.html')\"",
+    "build:pages": "npm run build && node --input-type=commonjs --eval \"require('fs').copyFileSync('dist/index.html','dist/404.html')\"",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run"

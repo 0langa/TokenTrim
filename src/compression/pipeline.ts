@@ -14,6 +14,9 @@ import { articleRemoval } from './transforms/articleRemoval';
 import { proseRewrite } from './transforms/proseRewrite';
 import { abbreviationTransform } from './transforms/abbreviationTransform';
 import { operatorTransform } from './transforms/operatorTransform';
+import { numericTransform } from './transforms/numericTransform';
+import { structuredDataTransform } from './transforms/structuredDataTransform';
+import { deduplicationTransform } from './transforms/deduplicationTransform';
 
 const EMPTY_SPAN_STATS: ProtectedSpanStats = {
   'fenced-code': 0,
@@ -127,41 +130,6 @@ function applyCavemanCompaction(input: string, mode: CompressionMode): { output:
   };
 }
 
-function squeezeWords(input: string, mode: CompressionMode): { output: string; stat: TransformStat; events: RiskEvent[] } {
-  const minLen = mode === 'ultra' ? 6 : 9;
-  let replacements = 0;
-  let charsSaved = 0;
-  const examples: Array<{ before: string; after: string }> = [];
-  const events: RiskEvent[] = [];
-
-  const output = input.replace(/\b[A-Za-z]{6,}\b/g, (word) => {
-    if (word.length < minLen) return word;
-    const lowered = word.toLowerCase();
-    if (['because', 'without', 'greater', 'less', 'equal'].includes(lowered)) return word;
-    const squeezed = word[0] + word.slice(1).replace(/[aeiou]/gi, '');
-    if (squeezed.length >= word.length) return word;
-    replacements += 1;
-    charsSaved += word.length - squeezed.length;
-    if (examples.length < 10) {
-      examples.push({ before: word, after: squeezed });
-      events.push({ transformId: 'word-squeeze', category: 'possible-meaning-change', before: word, after: squeezed });
-    }
-    return squeezed;
-  });
-
-  return {
-    output,
-    events,
-    stat: {
-      transformId: 'word-squeeze',
-      replacements,
-      charsSaved,
-      risk: mode === 'ultra' ? 'high' : 'medium',
-      examples,
-    },
-  };
-}
-
 export function compress(text: string, options: CompressionOptions): CompressionResult {
   const mode = modeFromOptions(options);
   const originalChars = text.length;
@@ -183,11 +151,29 @@ export function compress(text: string, options: CompressionOptions): Compression
       riskEvents.push(...examples.map((ex) => ({ transformId, category, before: ex.before, after: ex.after })));
     };
 
+    // All modes: JSON minification (lossless)
+    {
+      const sd = structuredDataTransform(output);
+      output = sd.output;
+      if (sd.stat.replacements > 0) {
+        stats.push(sd.stat);
+        addEvents('structured-data', 'safe-structural-cleanup', sd.examples);
+      }
+    }
+
     if (mode !== 'light') {
       const fill = fillerRemoval(output);
       output = fill.output;
       stats.push(fill.stat);
       addEvents('filler-removal', 'wording-change', fill.examples);
+
+      // Numeric: written numbers → digits
+      const num = numericTransform(output);
+      output = num.output;
+      if (num.stat.replacements > 0) {
+        stats.push(num.stat);
+        addEvents('numeric', 'wording-change', num.examples);
+      }
     }
 
     if (mode === 'normal' || mode === 'heavy' || mode === 'ultra') {
@@ -218,10 +204,13 @@ export function compress(text: string, options: CompressionOptions): Compression
       stats.push(caveman.stat);
       riskEvents.push(...caveman.events);
 
-      const squeezed = squeezeWords(output, mode);
-      output = squeezed.output;
-      stats.push(squeezed.stat);
-      riskEvents.push(...squeezed.events);
+      // Deduplication: remove repeated paragraphs
+      const dedup = deduplicationTransform(output);
+      output = dedup.output;
+      if (dedup.stat.replacements > 0) {
+        stats.push(dedup.stat);
+        addEvents('deduplication', 'possible-meaning-change', dedup.examples);
+      }
     }
 
     output = output
