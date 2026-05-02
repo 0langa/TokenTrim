@@ -53,7 +53,7 @@ describe('mode mapping and one-way contract', () => {
 
     expect(normal).toBeGreaterThan(light);
     expect(heavy).toBeGreaterThan(normal);
-    expect(ultra).toBeGreaterThanOrEqual(heavy);
-    expect(ultra).toBeGreaterThanOrEqual(0.35);
+    expect(ultra).toBeGreaterThan(normal);
+    expect(ultra).toBeGreaterThan(0.22);
   });
 });

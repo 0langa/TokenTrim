@@ -1,4 +1,11 @@
 export type CompressionMode = 'light' | 'normal' | 'heavy' | 'ultra' | 'custom';
+export type CompressionProfile =
+  | 'general'
+  | 'agent-context'
+  | 'repo-context'
+  | 'logs'
+  | 'markdown-docs'
+  | 'chat-history';
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';
 
@@ -47,9 +54,26 @@ export type RiskEvent = {
   after: string;
 };
 
+export type SafetyIssue = {
+  severity: 'warning' | 'error';
+  category:
+    | 'negation-loss'
+    | 'requirement-loss'
+    | 'number-loss'
+    | 'date-loss'
+    | 'semver-loss'
+    | 'url-loss'
+    | 'path-loss'
+    | 'code-identifier-loss'
+    | 'protected-span-loss';
+  before: string;
+  after?: string;
+  message: string;
+};
+
 export type CompressionReport = {
   transformStats: TransformStat[];
-  removedPhrases: string[];
+  removedPhrases: Array<{ before: string; after?: string }>;
   replacedPhrases: Array<{ before: string; after: string }>;
   abbreviationHits: number;
   operatorHits: number;
@@ -58,11 +82,11 @@ export type CompressionReport = {
   diffPreview: Array<{ kind: 'remove' | 'replace'; before: string; after?: string }>;
 };
 
-export type TokenizerKind = 'approx-generic';
+export type TokenizerKind = 'approx-generic' | 'openai-cl100k' | 'openai-o200k';
 
 export type TokenEstimate = {
   tokenizer: TokenizerKind;
-  estimatedTokens: number;
+  tokens: number;
   exact: boolean;
 };
 
@@ -76,22 +100,31 @@ export type CompressionMetrics = {
   estimatedTokensAfter: number;
   estimatedTokenSavings: number;
   tokenizerUsed: TokenizerKind;
+  tokenizerExact: boolean;
 };
 
 export type CompressionResult = {
   output: string;
   mode: CompressionMode;
+  profile?: CompressionProfile;
   metrics: CompressionMetrics;
   report: CompressionReport;
   warnings: string[];
+  safetyIssues: SafetyIssue[];
+  rejectedTransforms: string[];
+  targetTokens?: number;
+  budgetReached?: boolean;
   error?: string;
 };
 
 export type CompressionOptions = {
   mode?: CompressionMode;
+  profile?: CompressionProfile;
   profileId?: string;
   tokenizer?: TokenizerKind;
-  enabledTransforms?: string[]; // only used when mode === 'custom'
+  enabledTransforms?: string[];
+  targetTokens?: number;
+  maxRisk?: RiskLevel;
 };
 
 export type CompressionRequest = {
@@ -107,4 +140,21 @@ export type CompressionModeMeta = {
   expectedSavingsPct: [number, number];
   risk: RiskLevel;
   advanced?: boolean;
+};
+
+export type CompressionExportReport = {
+  version: string;
+  input: { chars: number; tokens: number };
+  output: { chars: number; tokens: number };
+  savings: { chars: number; tokens: number; tokenPercent: number };
+  tokenizer: TokenizerKind;
+  tokenizerExact: boolean;
+  mode: CompressionMode;
+  profile?: CompressionProfile;
+  targetTokens?: number;
+  budgetReached?: boolean;
+  transforms: TransformStat[];
+  safetyIssues: SafetyIssue[];
+  rejectedTransforms: string[];
+  warnings: string[];
 };

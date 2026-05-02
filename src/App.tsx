@@ -6,9 +6,10 @@ import { IntensitySelector } from './components/IntensitySelector';
 import { CopyButton } from './components/CopyButton';
 import { DiffView } from './components/DiffView';
 import { compress } from './compression/pipeline';
-import type { CompressionMode, CompressionResult } from './compression/types';
+import type { CompressionMode, CompressionProfile, CompressionResult, RiskLevel, TokenizerKind } from './compression/types';
 import { SAMPLE_INPUTS } from './data/samples';
 import { getModeMeta } from './compression/modes';
+import { listProfiles } from './compression/profiles';
 import { computeWordDiff } from './lib/wordDiff';
 
 const INPUT_KEY = 'tokentrim:last-input';
@@ -72,6 +73,10 @@ export default function App() {
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [singleExportFormat, setSingleExportFormat] = useState<ExportFormat>('txt');
   const [batchExportFormat, setBatchExportFormat] = useState<ExportFormat>('txt');
+  const [profile, setProfile] = useState<CompressionProfile>('general');
+  const [tokenizer, setTokenizer] = useState<TokenizerKind>('approx-generic');
+  const [targetTokens, setTargetTokens] = useState<string>('');
+  const [maxRisk, setMaxRisk] = useState<RiskLevel>('high');
   const [rightPaneView, setRightPaneView] = useState<'output' | 'diff'>('output');
   const [customTransforms, toggleCustomTransform] = useCustomTransforms();
   const { result, processing, run } = useCompression();
@@ -87,10 +92,13 @@ export default function App() {
   useEffect(() => {
     run(input, {
       mode,
-      tokenizer: 'approx-generic',
+      tokenizer,
+      profile,
+      targetTokens: targetTokens ? Number(targetTokens) : undefined,
+      maxRisk,
       ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}),
     });
-  }, [input, mode, customTransforms, run]);
+  }, [input, mode, customTransforms, run, profile, tokenizer, targetTokens, maxRisk]);
 
   const modeMeta = useMemo(() => getModeMeta(mode), [mode]);
 
@@ -111,7 +119,14 @@ export default function App() {
     const rows: BatchRow[] = [];
     for (const file of picked) {
       const text = await file.text();
-      const out = compress(text, { mode, tokenizer: 'approx-generic', ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}) });
+      const out = compress(text, {
+        mode,
+        tokenizer,
+        profile,
+        targetTokens: targetTokens ? Number(targetTokens) : undefined,
+        maxRisk,
+        ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}),
+      });
       rows.push({
         filename: file.name,
         output: out.output,
@@ -155,7 +170,7 @@ export default function App() {
         </div>
         <div>
           <div className="text-slate-300 mb-1">What Changed</div>
-          <div className="text-slate-400">Removed: {topRemoved.length ? topRemoved.join(' | ') : 'none'}</div>
+          <div className="text-slate-400">Removed: {topRemoved.length ? topRemoved.map((x) => x.before).join(' | ') : 'none'}</div>
           <div className="text-slate-400 mt-1">Replaced: {topReplaced.length ? topReplaced.map((x) => `${x.before}→${x.after}`).join(' | ') : 'none'}</div>
           <div className="mt-2 max-h-20 overflow-auto space-y-0.5">
             {data.report.riskEvents.slice(0, 8).map((ev, i) => {
@@ -211,6 +226,21 @@ export default function App() {
           />
         </div>
         <div className="flex flex-wrap items-center gap-4 mt-1">
+          <select value={profile} onChange={(e) => setProfile(e.target.value as CompressionProfile)} className="px-2 py-1 rounded bg-slate-700 text-xs">
+            {listProfiles().map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={tokenizer} onChange={(e) => setTokenizer(e.target.value as TokenizerKind)} className="px-2 py-1 rounded bg-slate-700 text-xs">
+            <option value="approx-generic">approx-generic</option>
+            <option value="openai-cl100k">openai-cl100k</option>
+            <option value="openai-o200k">openai-o200k</option>
+          </select>
+          <input value={targetTokens} onChange={(e) => setTargetTokens(e.target.value)} placeholder="target tokens" className="px-2 py-1 rounded bg-slate-700 text-xs w-28" />
+          <select value={maxRisk} onChange={(e) => setMaxRisk(e.target.value as RiskLevel)} className="px-2 py-1 rounded bg-slate-700 text-xs">
+            <option value="safe">safe</option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
           <select
             className="px-2 py-1 rounded bg-slate-700 text-xs"
             onChange={(e) => {
@@ -284,6 +314,11 @@ export default function App() {
               <div className="p-4 text-sm font-mono whitespace-pre-wrap">
                 {result?.output ?? ''}
                 {result?.warnings.length ? <div className="mt-4 text-amber-400">{result.warnings.join(' | ')}</div> : null}
+                {result && (
+                  <div className="mt-2 text-xs text-slate-400">
+                    budget: {result.targetTokens ?? 'none'} | reached: {typeof result.budgetReached === 'boolean' ? String(result.budgetReached) : 'n/a'} | rejected transforms: {result.rejectedTransforms.length} | safety issues: {result.safetyIssues.length}
+                  </div>
+                )}
                 {result?.error ? <div className="mt-4 text-red-400">{result.error}</div> : null}
                 {result ? (
                   <div className="mt-3 inline-flex items-center gap-2">

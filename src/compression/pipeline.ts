@@ -1,22 +1,21 @@
 import { estimateTokens } from './tokenizer';
 import { ALL_PROTECTED_SPANS, listModes, mapLegacyProfileToMode } from './modes';
+import { PROFILE_TRANSFORM_ORDER, mapLegacyProfileId } from './profiles';
 import { protectSpans, restoreSpans } from './protectedSpans';
+import { defaultTransformsForMode, findTransform } from './transformRegistry';
 import type {
   CompressionMode,
   CompressionOptions,
+  CompressionProfile,
   CompressionResult,
   ProtectedSpanStats,
   RiskEvent,
+  RiskLevel,
+  SafetyIssue,
   TransformStat,
 } from './types';
-import { fillerRemoval } from './transforms/fillerRemoval';
-import { articleRemoval } from './transforms/articleRemoval';
-import { proseRewrite } from './transforms/proseRewrite';
-import { abbreviationTransform } from './transforms/abbreviationTransform';
-import { operatorTransform } from './transforms/operatorTransform';
-import { numericTransform } from './transforms/numericTransform';
-import { structuredDataTransform } from './transforms/structuredDataTransform';
-import { deduplicationTransform } from './transforms/deduplicationTransform';
+import { validateSemanticSafety } from './safety/semanticValidator';
+import type { TransformContext } from './transforms/types';
 
 const EMPTY_SPAN_STATS: ProtectedSpanStats = {
   'fenced-code': 0,
@@ -35,15 +34,25 @@ const EMPTY_SPAN_STATS: ProtectedSpanStats = {
   'quoted-string': 0,
 };
 
+const RANK: Record<RiskLevel, number> = { safe: 0, low: 1, medium: 2, high: 3 };
+
 function normalizeStructural(text: string): string {
   return text
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
-    .replace(/[^\S\n]+$/gm, '')
+    .replace(/[ \t]+$/gm, '')
     .replace(/^[ \t]+$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
-    .replace(/(?<=\S) {2,}/g, ' ')
+    .replace(/[^\S\n]{2,}/g, ' ')
     .trimEnd();
+}
+
+function cleanupWhitespaceSafe(text: string): string {
+  return text
+    .replace(/[^\S\n]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
 }
 
 function wordCount(s: string): number {
@@ -56,22 +65,10 @@ function modeFromOptions(options: CompressionOptions): CompressionMode {
   return 'normal';
 }
 
-// NOTE: Keep this map in sync with TRANSFORM_REGISTRY defaultModes in transformRegistry.ts
-const PRESET_MAP: Record<string, CompressionMode[]> = {
-  'structured-data':      ['light', 'normal', 'heavy', 'ultra'],
-  'filler-removal':       ['normal', 'heavy', 'ultra'],
-  'numeric':              ['normal', 'heavy', 'ultra'],
-  'prose-rewrite:common': ['normal', 'heavy', 'ultra'],
-  'article-removal':      ['heavy', 'ultra'],
-  'abbreviation':         ['heavy', 'ultra'],
-  'operator':             ['heavy', 'ultra'],
-  'caveman-compaction':   ['heavy', 'ultra'],
-  'deduplication':        ['heavy', 'ultra'],
-};
-
-function shouldRun(id: string, mode: CompressionMode, enabled: string[] | undefined): boolean {
-  if (mode === 'custom') return enabled?.includes(id) ?? false;
-  return PRESET_MAP[id]?.includes(mode) ?? false;
+function profileFromOptions(options: CompressionOptions): CompressionProfile | undefined {
+  if (options.profile) return options.profile;
+  if (options.profileId) return mapLegacyProfileId(options.profileId);
+  return undefined;
 }
 
 function buildDiffPreview(stats: TransformStat[]): Array<{ kind: 'remove' | 'replace'; before: string; after?: string }> {
@@ -79,202 +76,123 @@ function buildDiffPreview(stats: TransformStat[]): Array<{ kind: 'remove' | 'rep
   for (const stat of stats) {
     for (const example of stat.examples) {
       if (preview.length >= 30) return preview;
-      if (example.after === '') {
-        preview.push({ kind: 'remove', before: example.before.slice(0, 80) });
-      } else {
-        preview.push({ kind: 'replace', before: example.before.slice(0, 80), after: example.after.slice(0, 80) });
-      }
+      if (example.after === '') preview.push({ kind: 'remove', before: example.before.slice(0, 80) });
+      else preview.push({ kind: 'replace', before: example.before.slice(0, 80), after: example.after.slice(0, 80) });
     }
   }
   return preview;
 }
 
-function applyCavemanCompaction(input: string, mode: CompressionMode): { output: string; stat: TransformStat; events: RiskEvent[] } {
-  let out = input;
-  const rules: Array<[RegExp, string]> =
-    mode === 'ultra'
-      ? [
-          [/\b(you should|you can|you need to|we should|we need to)\b/gi, ''],
-          [/\b(it is|there is|there are|this is|that is)\b/gi, ''],
-          [/\b(very|really|quite|just|actually|basically)\b/gi, ''],
-          [/\b(to be able to|in order to)\b/gi, 'to'],
-          [/\b(do not|does not|did not|cannot)\b/gi, 'not'],
-          [/\b(please|kindly)\b/gi, ''],
-          [/\b(therefore|hence|as a result)\b/gi, '=>'],
-          [/\b(the|a|an|that|which|who|whom|whose)\b/gi, ''],
-          [/\b(should|would|could|might|may)\b/gi, ''],
-          [/\b(of|for|to|from|into|onto|upon|over|under)\b/gi, ''],
-          [/\b(is|are|was|were|be|been|being)\b/gi, ''],
-          [/\b(increase|improve)\b/gi, 'boost'],
-          [/\b(decrease|reduce)\b/gi, 'cut'],
-          [/\b(important|critical)\b/gi, '!'],
-        ]
-      : [
-          [/\b(you should|you can|we should)\b/gi, ''],
-          [/\b(it is|there is|there are)\b/gi, ''],
-          [/\b(very|really|just)\b/gi, ''],
-          [/\b(in order to)\b/gi, 'to'],
-          [/\b(therefore|as a result)\b/gi, '=>'],
-          [/\b(the|a|an)\b/gi, ''],
-        ];
+function chooseTransforms(mode: CompressionMode, profile: CompressionProfile | undefined, enabled?: string[]): string[] {
+  if (enabled && enabled.length > 0) return enabled;
+  if (profile) return PROFILE_TRANSFORM_ORDER[profile];
+  return defaultTransformsForMode(mode);
+}
 
-  let replacements = 0;
-  let charsSaved = 0;
-  const examples: Array<{ before: string; after: string }> = [];
-  const events: RiskEvent[] = [];
+function allowsRisk(maxRisk: RiskLevel | undefined, risk: RiskLevel): boolean {
+  if (!maxRisk) return true;
+  return RANK[risk] <= RANK[maxRisk];
+}
 
-  for (const [pattern, replacement] of rules) {
-    out = out.replace(pattern, (match) => {
-      replacements += 1;
-      charsSaved += Math.max(0, match.length - replacement.length);
-      if (examples.length < 10) {
-        examples.push({ before: match, after: replacement });
-        events.push({ transformId: 'caveman-compaction', category: 'possible-meaning-change', before: match, after: replacement });
-      }
-      return replacement;
-    });
-  }
-
-  return {
-    output: out,
-    events,
-    stat: {
-      transformId: 'caveman-compaction',
-      replacements,
-      charsSaved,
-      risk: mode === 'ultra' ? 'high' : 'medium',
-      examples,
-    },
-  };
+function riskCategoryFromRisk(risk: RiskLevel): RiskEvent['category'] {
+  if (risk === 'safe') return 'safe-structural-cleanup';
+  if (risk === 'low') return 'technical-term-adjacent-change';
+  if (risk === 'medium') return 'wording-change';
+  return 'possible-meaning-change';
 }
 
 export function compress(text: string, options: CompressionOptions): CompressionResult {
   const mode = modeFromOptions(options);
+  const profile = profileFromOptions(options);
   const originalChars = text.length;
   const originalWords = wordCount(text);
   const tokenizerKind = options.tokenizer ?? 'approx-generic';
   const warnings: string[] = [];
   const riskEvents: RiskEvent[] = [];
+  const safetyIssues: SafetyIssue[] = [];
+  const rejectedTransforms: string[] = [];
 
   try {
     const protectedRun = protectSpans(normalizeStructural(text), ALL_PROTECTED_SPANS);
     let output = protectedRun.text;
     const stats: TransformStat[] = [];
-    const et = options.enabledTransforms;
+    const transformIds = chooseTransforms(mode, profile, options.enabledTransforms);
 
-    const addEvents = (
-      transformId: string,
-      category: RiskEvent['category'],
-      examples: Array<{ before: string; after: string }>,
-    ) => {
-      riskEvents.push(...examples.map((ex) => ({ transformId, category, before: ex.before, after: ex.after })));
-    };
-
-    if (shouldRun('structured-data', mode, et)) {
-      const sd = structuredDataTransform(output);
-      output = sd.output;
-      if (sd.stat.replacements > 0) {
-        stats.push(sd.stat);
-        addEvents('structured-data', 'safe-structural-cleanup', sd.examples);
+    for (const id of transformIds) {
+      const transform = findTransform(id);
+      if (!transform) continue;
+      if (!allowsRisk(options.maxRisk, transform.risk)) {
+        rejectedTransforms.push(id);
+        warnings.push(`Skipped ${id} due to maxRisk=${options.maxRisk}`);
+        continue;
       }
-    }
 
-    if (shouldRun('filler-removal', mode, et)) {
-      const fill = fillerRemoval(output);
-      output = fill.output;
-      stats.push(fill.stat);
-      addEvents('filler-removal', 'wording-change', fill.examples);
-    }
+      const ctx: TransformContext = {
+        mode,
+        profile,
+        tokenizer: tokenizerKind,
+        targetTokens: options.targetTokens,
+        maxRisk: options.maxRisk,
+      };
 
-    if (shouldRun('numeric', mode, et)) {
-      const num = numericTransform(output);
-      output = num.output;
-      if (num.stat.replacements > 0) {
-        stats.push(num.stat);
-        addEvents('numeric', 'wording-change', num.examples);
+      const before = output;
+      const result = transform.apply(before, ctx);
+      const issues = validateSemanticSafety(before, result.output, protectedRun.spans, protectedRun.spans);
+      const hasError = issues.some((i) => i.severity === 'error');
+
+      if (hasError) {
+        rejectedTransforms.push(id);
+        safetyIssues.push(...issues);
+        warnings.push(`Rejected transform ${id} due to semantic safety issues.`);
+        continue;
       }
+
+      output = result.output;
+      stats.push(result.stat);
+      safetyIssues.push(...issues);
+      riskEvents.push(
+        ...result.stat.examples.map((ex) => ({
+          transformId: id,
+          category: riskCategoryFromRisk(transform.risk),
+          before: ex.before,
+          after: ex.after,
+        })),
+      );
     }
 
-    if (shouldRun('prose-rewrite:common', mode, et)) {
-      const prose = proseRewrite(output, 'common');
-      output = prose.output;
-      stats.push(prose.stat);
-      addEvents('prose-rewrite:common', 'wording-change', prose.examples);
-    }
-
-    if (shouldRun('article-removal', mode, et)) {
-      const article = articleRemoval(output);
-      output = article.output;
-      stats.push(article.stat);
-      addEvents('article-removal', 'wording-change', article.examples);
-    }
-
-    if (shouldRun('abbreviation', mode, et)) {
-      const abbr = abbreviationTransform(output);
-      output = abbr.output;
-      stats.push(abbr.stat);
-      addEvents('abbreviation', 'technical-term-adjacent-change', abbr.examples);
-    }
-
-    if (shouldRun('operator', mode, et)) {
-      const op = operatorTransform(output, mode === 'ultra' ? 'left-arrow' : 'bc');
-      output = op.output;
-      stats.push(op.stat);
-      addEvents('operator', 'possible-meaning-change', op.examples);
-    }
-
-    if (shouldRun('caveman-compaction', mode, et)) {
-      // Use 'ultra' ruleset only in ultra mode; 'heavy' for everything else (including custom)
-      const cavemanMode: CompressionMode = mode === 'ultra' ? 'ultra' : 'heavy';
-      const caveman = applyCavemanCompaction(output, cavemanMode);
-      output = caveman.output;
-      stats.push(caveman.stat);
-      riskEvents.push(...caveman.events);
-    }
-
-    if (shouldRun('deduplication', mode, et)) {
-      const dedup = deduplicationTransform(output);
-      output = dedup.output;
-      if (dedup.stat.replacements > 0) {
-        stats.push(dedup.stat);
-        addEvents('deduplication', 'possible-meaning-change', dedup.examples);
-      }
-    }
-
-    output = output
-      .replace(/\s{2,}/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
+    output = cleanupWhitespaceSafe(output);
     output = restoreSpans(output, protectedRun.spans);
 
-    if (mode === 'ultra') {
-      warnings.push('Ultra mode applies maximum compression; readability reduced.');
-    }
-
+    const tokenBefore = estimateTokens(text, tokenizerKind);
+    const tokenAfter = estimateTokens(output, tokenizerKind);
     const outputChars = output.length;
     const outputWords = wordCount(output);
-    const tokensBefore = estimateTokens(text, tokenizerKind).estimatedTokens;
-    const tokensAfter = estimateTokens(output, tokenizerKind).estimatedTokens;
+
+    const budgetReached = options.targetTokens ? tokenAfter.tokens <= options.targetTokens : undefined;
+    if (options.targetTokens && !budgetReached) warnings.push(`Target token budget ${options.targetTokens} not reached.`);
 
     return {
       output,
       mode,
+      profile,
+      targetTokens: options.targetTokens,
+      budgetReached,
       metrics: {
         originalChars,
         outputChars,
         charSavings: originalChars - outputChars,
         originalWords,
         outputWords,
-        estimatedTokensBefore: tokensBefore,
-        estimatedTokensAfter: tokensAfter,
-        estimatedTokenSavings: tokensBefore - tokensAfter,
-        tokenizerUsed: tokenizerKind,
+        estimatedTokensBefore: tokenBefore.tokens,
+        estimatedTokensAfter: tokenAfter.tokens,
+        estimatedTokenSavings: tokenBefore.tokens - tokenAfter.tokens,
+        tokenizerUsed: tokenAfter.tokenizer,
+        tokenizerExact: tokenAfter.exact,
       },
       report: {
         transformStats: stats,
-        removedPhrases: stats.flatMap((s) => s.examples.filter((e) => e.after === '').map((e) => e.before)),
-        replacedPhrases: stats.flatMap((s) => s.examples.filter((e) => e.after !== '')),
+        removedPhrases: stats.flatMap((s) => s.examples.filter((e) => e.after === '').map((e) => ({ before: e.before }))),
+        replacedPhrases: stats.flatMap((s) => s.examples.filter((e) => e.after !== '').map((e) => ({ before: e.before, after: e.after }))),
         abbreviationHits: stats.find((s) => s.transformId === 'abbreviation')?.replacements ?? 0,
         operatorHits: stats.find((s) => s.transformId === 'operator')?.replacements ?? 0,
         protectedSpanStats: protectedRun.stats,
@@ -282,21 +200,28 @@ export function compress(text: string, options: CompressionOptions): Compression
         diffPreview: buildDiffPreview(stats),
       },
       warnings,
+      safetyIssues,
+      rejectedTransforms,
     };
   } catch (error) {
+    const tokenBefore = estimateTokens(text, tokenizerKind);
     return {
       output: text,
       mode,
+      profile,
+      targetTokens: options.targetTokens,
+      budgetReached: options.targetTokens ? false : undefined,
       metrics: {
         originalChars,
         outputChars: originalChars,
         charSavings: 0,
         originalWords,
         outputWords: originalWords,
-        estimatedTokensBefore: estimateTokens(text, tokenizerKind).estimatedTokens,
-        estimatedTokensAfter: estimateTokens(text, tokenizerKind).estimatedTokens,
+        estimatedTokensBefore: tokenBefore.tokens,
+        estimatedTokensAfter: tokenBefore.tokens,
         estimatedTokenSavings: 0,
-        tokenizerUsed: tokenizerKind,
+        tokenizerUsed: tokenBefore.tokenizer,
+        tokenizerExact: tokenBefore.exact,
       },
       report: {
         transformStats: [],
@@ -309,6 +234,8 @@ export function compress(text: string, options: CompressionOptions): Compression
         diffPreview: [],
       },
       warnings: ['Compression failed; original preserved.'],
+      safetyIssues: [],
+      rejectedTransforms: [],
       error: error instanceof Error ? error.message : String(error),
     };
   }
