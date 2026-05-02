@@ -1,7 +1,7 @@
 import type { Rule } from './shared';
 
 // Code-like line: contains camelCase, underscores, brackets, or backticks
-const CODE_LINE_RE = /[_`\[\]{}<>()]|[a-z][A-Z]|[A-Z]{2,}[a-z]/;
+const CODE_LINE_RE = /[_`[\]{}<>()]|[a-z][A-Z]|[A-Z]{2,}[a-z]/;
 
 function isCodeLine(line: string): boolean {
   return CODE_LINE_RE.test(line);
