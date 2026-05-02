@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { compress } from './pipeline';
 import { createCompressionReport } from './reporting';
+import { TOKENTRIM_VERSION } from '../version';
 
 describe('reporting', () => {
   it('serializes report json', () => {
@@ -10,5 +11,6 @@ describe('reporting', () => {
     expect(str.length).toBeGreaterThan(10);
     expect(report.mode).toBe('normal');
     expect(Array.isArray(report.transforms)).toBe(true);
+    expect(report.version).toBe(TOKENTRIM_VERSION);
   });
 });

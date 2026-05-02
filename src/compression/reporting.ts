@@ -1,4 +1,5 @@
 import type { CompressionExportReport, CompressionResult } from './types';
+import { TOKENTRIM_VERSION } from '../version';
 
 export function createCompressionReport(result: CompressionResult): CompressionExportReport {
   const tokenPercent = result.metrics.estimatedTokensBefore > 0
@@ -6,7 +7,7 @@ export function createCompressionReport(result: CompressionResult): CompressionE
     : 0;
 
   return {
-    version: '1.3.0',
+    version: TOKENTRIM_VERSION,
     input: { chars: result.metrics.originalChars, tokens: result.metrics.estimatedTokensBefore },
     output: { chars: result.metrics.outputChars, tokens: result.metrics.estimatedTokensAfter },
     savings: {

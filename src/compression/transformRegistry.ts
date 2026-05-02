@@ -75,8 +75,8 @@ export const TRANSFORM_REGISTRY: TokenTrimTransform[] = [
   { id: 'operator', label: 'Operator', description: 'Replace words with symbols', risk: 'high', defaultModes: ['heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input, ctx) => operatorTransform(input, ctx.mode === 'ultra' ? 'left-arrow' : 'bc') },
   { id: 'caveman-compaction', label: 'Caveman', description: 'Telegraphic compaction', risk: 'high', defaultModes: ['heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input, ctx) => cavemanCompactionTransform(input, ctx.mode) },
   { id: 'deduplication', label: 'Deduplication', description: 'Remove repeated paragraphs', risk: 'medium', defaultModes: ['heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => deduplicationTransform(input) },
-  { id: 'section-salience', label: 'Section Salience', description: 'Drop low-value blocks', risk: 'medium', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: ['agent-context', 'repo-context', 'chat-history', 'markdown-docs'], apply: (input, ctx) => sectionSalienceTransform(input, ctx.mode === 'heavy' || ctx.mode === 'ultra') },
-  { id: 'log-compression', label: 'Log Compression', description: 'Collapse repeated log lines', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: ['logs'], apply: (input) => logCompressionTransform(input) },
+  { id: 'section-salience', label: 'Section Salience', description: 'Drop low-value blocks', risk: 'medium', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: ['agent-context', 'repo-context', 'chat-history', 'markdown-docs'], profileOnly: true, apply: (input, ctx) => sectionSalienceTransform(input, ctx.mode === 'heavy' || ctx.mode === 'ultra') },
+  { id: 'log-compression', label: 'Log Compression', description: 'Collapse repeated log lines', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: ['logs'], profileOnly: true, apply: (input) => logCompressionTransform(input) },
 ];
 
 export function getAllTransformIds(): string[] {

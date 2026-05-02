@@ -11,6 +11,7 @@ import { SAMPLE_INPUTS } from './data/samples';
 import { getModeMeta } from './compression/modes';
 import { listProfiles } from './compression/profiles';
 import { computeWordDiff } from './lib/wordDiff';
+import { TOKENTRIM_VERSION } from './version';
 
 const INPUT_KEY = 'tokentrim:last-input';
 const MODE_KEY = 'tokentrim:last-mode';
@@ -61,10 +62,6 @@ function outputForFormat(
     return { filename: `${base}.trim.md`, content: row.output };
   }
   return { filename: `${base}.trim.txt`, content: row.output };
-}
-
-function currentVersion(): string {
-  return 'v1.2.0';
 }
 
 export default function App() {
@@ -211,7 +208,7 @@ export default function App() {
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-2xl font-bold tracking-tight text-violet-400">TokenTrim</span>
           <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">local only · one-way high-impact compression · no telemetry</span>
-          <span className="text-xs text-slate-500">{currentVersion()}</span>
+          <span className="text-xs text-slate-500">v{TOKENTRIM_VERSION}</span>
         </div>
       </header>
 

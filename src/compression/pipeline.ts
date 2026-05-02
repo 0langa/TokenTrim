@@ -85,8 +85,15 @@ function buildDiffPreview(stats: TransformStat[]): Array<{ kind: 'remove' | 'rep
 
 function chooseTransforms(mode: CompressionMode, profile: CompressionProfile | undefined, enabled?: string[]): string[] {
   if (enabled && enabled.length > 0) return enabled;
-  if (profile) return PROFILE_TRANSFORM_ORDER[profile];
-  return defaultTransformsForMode(mode);
+  const modeIds = new Set(defaultTransformsForMode(mode));
+  if (!profile || profile === 'general') return [...modeIds];
+  const orderedProfileIds = PROFILE_TRANSFORM_ORDER[profile] ?? [];
+  return orderedProfileIds.filter((id) => {
+    const transform = findTransform(id);
+    if (!transform) return false;
+    if (transform.profileOnly) return true;
+    return modeIds.has(id);
+  });
 }
 
 function allowsRisk(maxRisk: RiskLevel | undefined, risk: RiskLevel): boolean {

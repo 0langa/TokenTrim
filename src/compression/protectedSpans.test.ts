@@ -79,4 +79,19 @@ describe('protectedSpans — roundtrip', () => {
     const run = protectSpans(input, ALL_PROTECTED_SPANS);
     expect(run.stats['cli-command']).toBeGreaterThan(0);
   });
+
+  it('protects fenced json/yaml before generic fenced code', () => {
+    const input = '```json\n{"a":1}\n```\n\n```yaml\na: 1\n```\n\n```ts\nconst a = 1\n```';
+    const run = protectSpans(input, ALL_PROTECTED_SPANS);
+    expect(run.stats['json-block']).toBe(1);
+    expect(run.stats['yaml-toml']).toBe(1);
+    expect(run.stats['fenced-code']).toBe(1);
+    expect(restoreSpans(run.text, run.spans)).toBe(input);
+  });
+
+  it('does not corrupt URLs or Windows paths inside code fences', () => {
+    const input = '```ps1\ncurl https://example.com\ncat C:\\\\repo\\\\app.ts\n```';
+    const run = protectSpans(input, ALL_PROTECTED_SPANS);
+    expect(restoreSpans(run.text, run.spans)).toBe(input);
+  });
 });

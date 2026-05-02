@@ -1,6 +1,8 @@
 import type { CompressionMode, CompressionModeMeta, ProtectedSpanType } from './types';
 
 export const ALL_PROTECTED_SPANS: ProtectedSpanType[] = [
+  'json-block',
+  'yaml-toml',
   'fenced-code',
   'inline-code',
   'url',
@@ -9,8 +11,6 @@ export const ALL_PROTECTED_SPANS: ProtectedSpanType[] = [
   'env-var',
   'api-placeholder',
   'number-unit',
-  'json-block',
-  'yaml-toml',
   'markdown-table',
   'markdown-heading',
   'email',

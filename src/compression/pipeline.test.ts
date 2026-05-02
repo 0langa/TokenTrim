@@ -24,11 +24,22 @@ describe('compress pipeline', () => {
     expect(res.report.transformStats.some((x) => x.transformId === 'filler-removal')).toBe(true);
   });
 
+  it('enabledTransforms override profile defaults', () => {
+    const res = compress('Thanks\n\n2026-05-02T10:00:00Z ERROR TimeoutError\n2026-05-02T10:00:00Z ERROR TimeoutError', {
+      mode: 'light',
+      profile: 'logs',
+      enabledTransforms: ['filler-removal'],
+    });
+    expect(res.report.transformStats.some((x) => x.transformId === 'filler-removal')).toBe(true);
+    expect(res.report.transformStats.some((x) => x.transformId === 'log-compression')).toBe(false);
+  });
+
   it('rejects unsafe transform when semantic loss detected', () => {
-    const input = 'You must not remove https://example.com and path src/app.ts and version 1.2.3';
-    const res = compress(input, { mode: 'custom', enabledTransforms: ['caveman-compaction'], maxRisk: 'high', profile: 'general' });
-    expect(Array.isArray(res.rejectedTransforms)).toBe(true);
-    expect(Array.isArray(res.safetyIssues)).toBe(true);
+    const input = 'You should not deploy this.';
+    const res = compress(input, { mode: 'ultra', enabledTransforms: ['caveman-compaction'], maxRisk: 'high', profile: 'general' });
+    expect(res.rejectedTransforms).toContain('caveman-compaction');
+    expect(res.safetyIssues.some((x) => x.severity === 'error')).toBe(true);
+    expect(res.output).toContain('should not');
   });
 
   it('keeps markdown/code fences structure', () => {
@@ -36,5 +47,24 @@ describe('compress pipeline', () => {
     const out = compress(md, { mode: 'heavy', profile: 'markdown-docs' });
     expect(out.output).toContain('```ts');
     expect(out.output).toContain('\n\n- one');
+  });
+
+  it('general profile respects mode aggressiveness', () => {
+    const input = 'The implementation and documentation should be concise and clear.';
+    const light = compress(input, { mode: 'light', profile: 'general' });
+    const heavy = compress(input, { mode: 'heavy', profile: 'general' });
+    expect(light.report.transformStats.some((x) => x.transformId === 'article-removal')).toBe(false);
+    expect(light.report.transformStats.some((x) => x.transformId === 'operator')).toBe(false);
+    expect(heavy.metrics.charSavings).toBeGreaterThanOrEqual(light.metrics.charSavings);
+  });
+
+  it('profile-specific transforms still run', () => {
+    const logInput = 'ERROR TimeoutError at service boundary\nERROR TimeoutError at service boundary';
+    const logRes = compress(logInput, { mode: 'light', profile: 'logs' });
+    expect(logRes.report.transformStats.some((x) => x.transformId === 'log-compression')).toBe(true);
+
+    const ctxInput = 'Thanks\n\n## Requirements\nThe system must not fail.\n\nOkay';
+    const ctxRes = compress(ctxInput, { mode: 'light', profile: 'agent-context' });
+    expect(ctxRes.report.transformStats.some((x) => x.transformId === 'markdown-cleanup' || x.transformId === 'section-salience')).toBe(true);
   });
 });

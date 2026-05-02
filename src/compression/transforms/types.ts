@@ -26,5 +26,6 @@ export type TokenTrimTransform = {
   risk: RiskLevel;
   defaultModes: CompressionMode[];
   profiles?: CompressionProfile[];
+  profileOnly?: boolean;
   apply: (input: string, ctx: TransformContext) => TransformResult;
 };
