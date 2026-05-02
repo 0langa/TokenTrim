@@ -83,6 +83,10 @@ export function getAllTransformIds(): string[] {
   return TRANSFORM_REGISTRY.map((t) => t.id);
 }
 
+export function getAllTransforms(): TokenTrimTransform[] {
+  return [...TRANSFORM_REGISTRY];
+}
+
 export function findTransform(id: string): TokenTrimTransform | undefined {
   return TRANSFORM_REGISTRY.find((t) => t.id === id);
 }

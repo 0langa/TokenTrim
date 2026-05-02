@@ -1,8 +1,8 @@
-import type { TransformExample, TransformStat } from '../types';
+import type { SafetyIssue, TransformExample, TransformStat } from '../types';
 
 const TS_RE = /\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\b/g;
 
-export function logCompressionTransform(input: string): { output: string; stat: TransformStat; examples: TransformExample[] } {
+export function logCompressionTransform(input: string): { output: string; stat: TransformStat; examples: TransformExample[]; allowedSafetyCategories: SafetyIssue['category'][] } {
   const lines = input.split('\n');
   const examples: TransformExample[] = [];
   const out: string[] = [];
@@ -30,6 +30,7 @@ export function logCompressionTransform(input: string): { output: string; stat: 
   return {
     output: out.join('\n'),
     examples,
+    allowedSafetyCategories: ['date-loss', 'number-loss'],
     stat: {
       transformId: 'log-compression',
       replacements,

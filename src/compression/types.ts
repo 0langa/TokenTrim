@@ -17,6 +17,7 @@ export type TransformStat = {
   charsSaved: number;
   risk: RiskLevel;
   examples: TransformExample[];
+  durationMs?: number;
 };
 
 export type ProtectedSpanType =
@@ -114,6 +115,7 @@ export type CompressionResult = {
   rejectedTransforms: string[];
   targetTokens?: number;
   budgetReached?: boolean;
+  durationMs?: number;
   error?: string;
 };
 
@@ -153,6 +155,7 @@ export type CompressionExportReport = {
   profile?: CompressionProfile;
   targetTokens?: number;
   budgetReached?: boolean;
+  durationMs?: number;
   transforms: TransformStat[];
   safetyIssues: SafetyIssue[];
   rejectedTransforms: string[];

@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.0.0 - 2026-05-02
+
+### Web App — Phase 3 Polish
+
+- Reorganized UI into a clear guided workflow: preset → compression strength → input → results.
+- Added five-tab result area: Output, Diff, Safety, Transforms, Report.
+- Added Safety tab with color-coded status dot (green/amber/red) in tab bar.
+- Added Transforms tab with per-transform timing, char savings, risk level, and rejected-transform list.
+- Added Report tab with in-app formatted summary cards (savings, mode, runtime, budget, quality).
+- Moved Safety and Transforms out of below-pane sections into dedicated result tabs.
+- Replaced raw file input with styled Upload button (eliminates browser-locale label issues).
+- Added collapsible Advanced options panel (use case, risk, budget, token counter).
+- Added GitHub link and product tagline to header.
+- Added "How it works" empty state in the Output tab before first compression.
+- Added footer with local-first guarantee, CLI hint, and GitHub link.
+- Improved batch table styling and export controls.
+- Improved empty states across all tabs.
+
+### CLI / Core
+
+- `tokentrim init` now accepts `--out` to write starter config to a custom path.
+- Fixed Windows `pathToFileURL` bug in benchmark runner.
+- Added `list-transforms --format json`, `list-profiles --format json` output.
+- Added transform timing (`durationMs`) to all transform stats and compression result.
+- Added `durationMs` to compression export report JSON.
+
 ## 1.3.0 - 2026-05-02
 
 - Added executable transform registry and registry-driven pipeline execution.

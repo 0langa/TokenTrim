@@ -38,9 +38,20 @@ export function MetricsBar({ result, processing }: Props) {
           <Metric label="Mode" value={result.mode.toUpperCase()} />
           <Metric label="Orig chars" value={result.metrics.originalChars.toLocaleString()} />
           <Metric label="Out chars" value={result.metrics.outputChars.toLocaleString()} />
-          <Metric label="Tokens before" value={result.metrics.estimatedTokensBefore.toLocaleString()} />
-          <Metric label="Tokens after" value={result.metrics.estimatedTokensAfter.toLocaleString()} />
-          <span className="text-xs self-center text-slate-500">est. ({result.metrics.tokenizerUsed})</span>
+          <Metric
+            label={result.metrics.tokenizerExact ? 'Tokens before' : '~Tokens before'}
+            value={result.metrics.estimatedTokensBefore.toLocaleString()}
+          />
+          <Metric
+            label={result.metrics.tokenizerExact ? 'Tokens after' : '~Tokens after'}
+            value={result.metrics.estimatedTokensAfter.toLocaleString()}
+          />
+          <span
+            className="text-xs self-center text-slate-500"
+            title={result.metrics.tokenizerExact ? 'Exact token count' : 'Token counts are approximate estimates — not guaranteed to match model tokenizer output'}
+          >
+            {result.metrics.tokenizerExact ? 'exact' : 'est.'} ({result.metrics.tokenizerUsed})
+          </span>
         </>
       ) : null}
     </div>

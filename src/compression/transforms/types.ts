@@ -2,6 +2,7 @@ import type {
   CompressionMode,
   CompressionProfile,
   RiskLevel,
+  SafetyIssue,
   TokenizerKind,
   TransformStat,
 } from '../types';
@@ -17,6 +18,8 @@ export type TransformContext = {
 export type TransformResult = {
   output: string;
   stat: TransformStat;
+  /** Categories of safety issues this transform intentionally produces and that should not cause rejection. */
+  allowedSafetyCategories?: SafetyIssue['category'][];
 };
 
 export type TokenTrimTransform = {

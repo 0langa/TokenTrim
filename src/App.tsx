@@ -1,41 +1,45 @@
-import { useEffect, useMemo, useState, type DragEvent } from 'react';
+import { useEffect, useState, type DragEvent } from 'react';
 import { useCompression } from './hooks/useCompression';
 import { useCustomTransforms } from './hooks/useCustomTransforms';
 import { MetricsBar } from './components/MetricsBar';
 import { IntensitySelector } from './components/IntensitySelector';
-import { CopyButton } from './components/CopyButton';
-import { DiffView } from './components/DiffView';
+import { ResultTabs } from './components/ResultTabs';
+import { PresetSelector } from './components/PresetSelector';
 import { compress } from './compression/pipeline';
-import type { CompressionMode, CompressionProfile, CompressionResult, RiskLevel, TokenizerKind } from './compression/types';
+import { createCompressionReport } from './compression/reporting';
+import type {
+  CompressionMode,
+  CompressionProfile,
+  CompressionResult,
+  RiskLevel,
+  TokenizerKind,
+} from './compression/types';
+import type { Preset } from './compression/presets';
+import type { ExportFormat } from './components/ResultTabs';
 import { SAMPLE_INPUTS } from './data/samples';
-import { getModeMeta } from './compression/modes';
 import { listProfiles } from './compression/profiles';
-import { computeWordDiff } from './lib/wordDiff';
 import { TOKENTRIM_VERSION } from './version';
 
 const INPUT_KEY = 'tokentrim:last-input';
 const MODE_KEY = 'tokentrim:last-mode';
+const GITHUB_URL = 'https://github.com/0langa/TokenTrim';
 
 type BatchRow = {
   filename: string;
-  output: string;
-  mode: CompressionMode;
-  originalChars: number;
-  outputChars: number;
-  estimatedTokensBefore: number;
-  estimatedTokensAfter: number;
+  result: CompressionResult;
   ratio: string;
   status: string;
 };
-type ExportFormat = 'txt' | 'md' | 'json';
 
-const PLACEHOLDER = `Paste text to compress.
+const PLACEHOLDER = `Paste text to compress…
 
-Modes: Light, Normal, Heavy, Ultra, Custom.
-Ultra maximizes savings with reduced readability.
-Custom lets you pick individual transforms.`;
+Supports prompts, logs, markdown, code, YAML, JSON, and plain text.
+Pick a preset above, or tune compression strength and options below.`;
 
-const SUPPORTED = new Set(['txt', 'md', 'json', 'yaml', 'yml', 'toml', 'ts', 'tsx', 'js', 'jsx', 'py', 'css', 'html']);
+const SUPPORTED = new Set([
+  'txt', 'md', 'json', 'yaml', 'yml', 'toml',
+  'ts', 'tsx', 'js', 'jsx', 'py', 'css', 'html',
+]);
 
 function download(filename: string, content: string) {
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -47,6 +51,10 @@ function download(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+function safeFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
 function outputForFormat(
   row: { output: string; filename?: string; mode: CompressionMode },
   format: ExportFormat,
@@ -54,27 +62,29 @@ function outputForFormat(
   const base = row.filename ? row.filename.replace(/\.[^.]+$/, '') : 'compressed';
   if (format === 'json') {
     return {
-      filename: `${base}.trim.json`,
+      filename: `${safeFilename(base)}.trim.json`,
       content: JSON.stringify({ mode: row.mode, output: row.output }, null, 2),
     };
   }
   if (format === 'md') {
-    return { filename: `${base}.trim.md`, content: row.output };
+    return { filename: `${safeFilename(base)}.trim.md`, content: row.output };
   }
-  return { filename: `${base}.trim.txt`, content: row.output };
+  return { filename: `${safeFilename(base)}.trim.txt`, content: row.output };
 }
 
 export default function App() {
   const [input, setInput] = useState(() => localStorage.getItem(INPUT_KEY) ?? '');
-  const [mode, setMode] = useState<CompressionMode>(() => (localStorage.getItem(MODE_KEY) as CompressionMode) ?? 'normal');
+  const [mode, setMode] = useState<CompressionMode>(
+    () => (localStorage.getItem(MODE_KEY) as CompressionMode) ?? 'normal',
+  );
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
-  const [singleExportFormat, setSingleExportFormat] = useState<ExportFormat>('txt');
   const [batchExportFormat, setBatchExportFormat] = useState<ExportFormat>('txt');
   const [profile, setProfile] = useState<CompressionProfile>('general');
   const [tokenizer, setTokenizer] = useState<TokenizerKind>('approx-generic');
   const [targetTokens, setTargetTokens] = useState<string>('');
-  const [maxRisk, setMaxRisk] = useState<RiskLevel>('high');
-  const [rightPaneView, setRightPaneView] = useState<'output' | 'diff'>('output');
+  const [maxRisk, setMaxRisk] = useState<RiskLevel>('medium');
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [customTransforms, toggleCustomTransform] = useCustomTransforms();
   const { result, processing, run } = useCompression();
 
@@ -97,22 +107,23 @@ export default function App() {
     });
   }, [input, mode, customTransforms, run, profile, tokenizer, targetTokens, maxRisk]);
 
-  const modeMeta = useMemo(() => getModeMeta(mode), [mode]);
-
-  const diffChunks = useMemo(() => {
-    if (rightPaneView !== 'diff' || !result) return null;
-    return computeWordDiff(input, result.output);
-  }, [rightPaneView, input, result]);
+  function handlePresetSelect(preset: Preset) {
+    setProfile(preset.profile);
+    setMode(preset.mode);
+    setMaxRisk(preset.maxRisk);
+    setSelectedPreset(preset.id);
+  }
 
   async function onFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const picked = Array.from(files).filter((file) => SUPPORTED.has(file.name.split('.').pop()?.toLowerCase() ?? ''));
+    const picked = Array.from(files).filter((file) =>
+      SUPPORTED.has(file.name.split('.').pop()?.toLowerCase() ?? ''),
+    );
     if (picked.length === 1) {
       setInput(await picked[0].text());
       setBatchRows([]);
       return;
     }
-
     const rows: BatchRow[] = [];
     for (const file of picked) {
       const text = await file.text();
@@ -126,13 +137,11 @@ export default function App() {
       });
       rows.push({
         filename: file.name,
-        output: out.output,
-        mode,
-        originalChars: out.metrics.originalChars,
-        outputChars: out.metrics.outputChars,
-        estimatedTokensBefore: out.metrics.estimatedTokensBefore,
-        estimatedTokensAfter: out.metrics.estimatedTokensAfter,
-        ratio: out.metrics.originalChars > 0 ? (out.metrics.outputChars / out.metrics.originalChars).toFixed(3) : '1.000',
+        result: out,
+        ratio:
+          out.metrics.originalChars > 0
+            ? (out.metrics.outputChars / out.metrics.originalChars).toFixed(3)
+            : '1.000',
         status: out.error ? 'failed' : 'ok',
       });
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -150,234 +159,344 @@ export default function App() {
     localStorage.removeItem(MODE_KEY);
     setInput('');
     setMode('normal');
+    setSelectedPreset(null);
   }
 
-  function renderWhatChanged(data: CompressionResult) {
-    const topRemoved = data.report.removedPhrases.slice(0, 5);
-    const topReplaced = data.report.replacedPhrases.slice(0, 5);
+  function handleDownloadOutput(format: ExportFormat) {
+    if (!result) return;
+    const payload = outputForFormat({ output: result.output, mode: result.mode }, format);
+    download(payload.filename, payload.content);
+  }
 
-    return (
-      <div className="border-t border-slate-700 p-4 text-xs grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div>
-          <div className="text-slate-300 mb-1">Mode Summary</div>
-          <div>{getModeMeta(data.mode).description}</div>
-          <div className="text-slate-400">Expected savings: {modeMeta.expectedSavingsPct[0]}–{modeMeta.expectedSavingsPct[1]}%</div>
-          <div className="mt-2 text-slate-500">Char savings: {data.metrics.charSavings}</div>
-          <div className="text-slate-500">Token savings: {data.metrics.estimatedTokenSavings}</div>
-        </div>
-        <div>
-          <div className="text-slate-300 mb-1">What Changed</div>
-          <div className="text-slate-400">Removed: {topRemoved.length ? topRemoved.map((x) => x.before).join(' | ') : 'none'}</div>
-          <div className="text-slate-400 mt-1">Replaced: {topReplaced.length ? topReplaced.map((x) => `${x.before}→${x.after}`).join(' | ') : 'none'}</div>
-          <div className="mt-2 max-h-20 overflow-auto space-y-0.5">
-            {data.report.riskEvents.slice(0, 8).map((ev, i) => {
-              const color = ev.category === 'safe-structural-cleanup'
-                ? 'text-green-400'
-                : ev.category === 'wording-change'
-                  ? 'text-yellow-400'
-                  : 'text-red-400';
-              return (
-                <div key={i} className={`${color} truncate`}>
-                  {ev.before || '∅'} → {ev.after || '∅'}
-                </div>
-              );
-            })}
-            {data.report.riskEvents.length === 0 && <span className="text-slate-500">No events.</span>}
-          </div>
-        </div>
-        <div>
-          <div className="text-slate-300 mb-1">Transform Stats</div>
-          <div className="max-h-28 overflow-auto space-y-0.5 text-slate-500">
-            {data.report.transformStats.length === 0
-              ? 'No transforms applied.'
-              : data.report.transformStats.map((s) => (
-                  <div key={s.transformId} className="truncate">
-                    <span className="text-slate-400">{s.transformId}</span>
-                    {' '}{s.replacements} change{s.replacements !== 1 ? 's' : ''}, −{s.charsSaved} chars
-                  </div>
-                ))}
-          </div>
-        </div>
-      </div>
-    );
+  function handleDownloadReport() {
+    if (!result) return;
+    const report = createCompressionReport(result);
+    download('tokentrim-report.json', JSON.stringify(report, null, 2));
+  }
+
+  function exportBatchSummary() {
+    const summary = {
+      version: TOKENTRIM_VERSION,
+      fileCount: batchRows.length,
+      totalCharsBefore: batchRows.reduce((s, r) => s + r.result.metrics.originalChars, 0),
+      totalCharsAfter: batchRows.reduce((s, r) => s + r.result.metrics.outputChars, 0),
+      totalTokensBefore: batchRows.reduce(
+        (s, r) => s + r.result.metrics.estimatedTokensBefore,
+        0,
+      ),
+      totalTokensAfter: batchRows.reduce((s, r) => s + r.result.metrics.estimatedTokensAfter, 0),
+      filesWithWarnings: batchRows.filter((r) => r.result.warnings.length > 0).length,
+      filesWithRejectedTransforms: batchRows.filter(
+        (r) => r.result.rejectedTransforms.length > 0,
+      ).length,
+      mode,
+      profile,
+      maxRisk,
+      tokenizer,
+    };
+    download('tokentrim-batch-summary.json', JSON.stringify(summary, null, 2));
+  }
+
+  function exportBatchAll() {
+    const parts = batchRows.map((r) => `=== ${r.filename} ===\n\n${r.result.output}`);
+    download('tokentrim-batch-all.txt', parts.join('\n\n' + '─'.repeat(60) + '\n\n'));
   }
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
-      <header className="border-b border-slate-700 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-2xl font-bold tracking-tight text-violet-400">TokenTrim</span>
-          <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">local only · one-way high-impact compression · no telemetry</span>
-          <span className="text-xs text-slate-500">v{TOKENTRIM_VERSION}</span>
+      {/* ── Header ── */}
+      <header className="border-b border-slate-700 px-5 py-3 flex items-center gap-4 shrink-0">
+        <span className="text-xl font-bold tracking-tight text-violet-400">TokenTrim</span>
+        <span className="hidden md:block text-xs text-slate-400 border-l border-slate-700 pl-4 leading-tight">
+          Compress AI context locally — deterministic transforms,
+          protected spans, safety validation
+        </span>
+        <div className="ml-auto flex items-center gap-3 shrink-0">
+          <span className="hidden sm:inline text-[11px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+            local · no AI · no telemetry
+          </span>
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            GitHub ↗
+          </a>
+          <span className="text-[11px] text-slate-600">v{TOKENTRIM_VERSION}</span>
         </div>
       </header>
 
-      <div className="flex flex-wrap items-start gap-4 px-6 py-3 bg-slate-800 border-b border-slate-700">
-        <div className="flex items-start gap-2">
-          <span className="text-xs text-slate-400 uppercase tracking-wider mt-2">Mode</span>
-          <IntensitySelector
-            value={mode}
-            onChange={setMode}
-            enabledTransforms={customTransforms}
-            onTransformToggle={toggleCustomTransform}
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-4 mt-1">
-          <select value={profile} onChange={(e) => setProfile(e.target.value as CompressionProfile)} className="px-2 py-1 rounded bg-slate-700 text-xs">
-            {listProfiles().map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <select value={tokenizer} onChange={(e) => setTokenizer(e.target.value as TokenizerKind)} className="px-2 py-1 rounded bg-slate-700 text-xs">
-            <option value="approx-generic">approx-generic</option>
-            <option value="openai-cl100k">openai-cl100k</option>
-            <option value="openai-o200k">openai-o200k</option>
-          </select>
-          <input value={targetTokens} onChange={(e) => setTargetTokens(e.target.value)} placeholder="target tokens" className="px-2 py-1 rounded bg-slate-700 text-xs w-28" />
-          <select value={maxRisk} onChange={(e) => setMaxRisk(e.target.value as RiskLevel)} className="px-2 py-1 rounded bg-slate-700 text-xs">
-            <option value="safe">safe</option>
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-          </select>
-          <select
-            className="px-2 py-1 rounded bg-slate-700 text-xs"
-            onChange={(e) => {
-              const sample = SAMPLE_INPUTS.find((s) => s.id === e.target.value);
-              if (sample) setInput(sample.text);
-            }}
-            defaultValue=""
-          >
-            <option value="" disabled>Load sample input</option>
-            {SAMPLE_INPUTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-          <input type="file" multiple onChange={(e) => void onFilesSelected(e.target.files)} className="text-xs" />
-          <button className="text-xs px-2 py-1 rounded bg-slate-700" onClick={clearLocalState}>Clear local data</button>
-        </div>
-        <div className="ml-auto mt-1">
-          <CopyButton result={result} requireUltraConfirm={mode === 'ultra' || mode === 'custom'} />
+      {/* ── Step 1: What are you compressing? ── */}
+      <div className="px-5 py-2.5 bg-slate-800/60 border-b border-slate-700 shrink-0">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider shrink-0">
+            What are you compressing?
+          </span>
+          <PresetSelector selected={selectedPreset} onSelect={handlePresetSelect} />
         </div>
       </div>
 
+      {/* ── Step 2: Controls ── */}
+      <div className="px-5 py-3 bg-slate-800/40 border-b border-slate-700 shrink-0">
+        <div className="flex flex-wrap items-end gap-4">
+          {/* Compression strength */}
+          <div>
+            <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5">
+              Compression strength
+            </div>
+            <IntensitySelector
+              value={mode}
+              onChange={setMode}
+              enabledTransforms={customTransforms}
+              onTransformToggle={toggleCustomTransform}
+            />
+          </div>
+
+          {/* Advanced toggle */}
+          <button
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors pb-1.5"
+            title="Use case, risk, token budget, token counter"
+          >
+            {showAdvanced ? '▾' : '▸'} Advanced options
+          </button>
+
+          {/* Input controls — right-aligned */}
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            <select
+              className="px-2 py-1 rounded bg-slate-700 text-xs text-slate-200"
+              onChange={(e) => {
+                const sample = SAMPLE_INPUTS.find((s) => s.id === e.target.value);
+                if (sample) setInput(sample.text);
+              }}
+              defaultValue=""
+            >
+              <option value="" disabled>
+                Load sample
+              </option>
+              {SAMPLE_INPUTS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <label className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-200 cursor-pointer hover:bg-slate-600 transition-colors">
+              Upload files
+              <input
+                type="file"
+                multiple
+                className="sr-only"
+                onChange={(e) => void onFilesSelected(e.target.files)}
+              />
+            </label>
+            <button
+              className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+              onClick={clearLocalState}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        {/* Advanced options panel */}
+        {showAdvanced && (
+          <div className="mt-3 pt-3 border-t border-slate-700/60 flex flex-wrap gap-5">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-slate-500 uppercase tracking-wider">Use case</span>
+              <select
+                value={profile}
+                onChange={(e) => {
+                  setProfile(e.target.value as CompressionProfile);
+                  setSelectedPreset(null);
+                }}
+                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs"
+                title="Selects transforms optimized for your content type"
+              >
+                {listProfiles().map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-slate-500 uppercase tracking-wider">
+                Allowed risk
+              </span>
+              <select
+                value={maxRisk}
+                onChange={(e) => setMaxRisk(e.target.value as RiskLevel)}
+                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs"
+                title="Higher risk allows more aggressive transforms. Unsafe outputs are automatically rejected."
+              >
+                <option value="safe">Safe</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High (aggressive)</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-slate-500 uppercase tracking-wider">
+                Target token budget
+              </span>
+              <input
+                value={targetTokens}
+                onChange={(e) => setTargetTokens(e.target.value)}
+                placeholder="e.g. 4000"
+                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs w-24"
+                title="Stop compressing when output reaches this approximate token count"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-slate-500 uppercase tracking-wider">
+                Token counter
+              </span>
+              <select
+                value={tokenizer}
+                onChange={(e) => setTokenizer(e.target.value as TokenizerKind)}
+                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs"
+                title="All counters return approximate estimates — not guaranteed to match model tokenizer output exactly"
+              >
+                <option value="approx-generic">Generic (~approx)</option>
+                <option value="openai-cl100k">OpenAI cl100k (~approx)</option>
+                <option value="openai-o200k">OpenAI o200k (~approx)</option>
+              </select>
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* ── Metrics bar ── */}
       <MetricsBar result={result} processing={processing} />
 
-      <div className="px-6 py-2 text-xs text-slate-400 border-b border-slate-800">
-        {modeMeta.description} | {modeMeta.guidance} | Expected token savings: {modeMeta.expectedSavingsPct[0]}–{modeMeta.expectedSavingsPct[1]}%
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left pane: input */}
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={PLACEHOLDER}
-          className="flex-1 p-4 bg-slate-900 border-r border-slate-700 text-sm font-mono resize-none"
-        />
-
-        {/* Right pane: output or diff */}
-        <div
-          className="flex-1 flex flex-col overflow-hidden"
-          onDrop={(e) => void onDrop(e)}
-          onDragOver={(e) => e.preventDefault()}
-        >
-          {/* Tab toggle */}
-          <div className="flex border-b border-slate-700 bg-slate-900 shrink-0">
-            <button
-              onClick={() => setRightPaneView('output')}
-              className={`px-4 py-2 text-xs font-medium transition-colors ${
-                rightPaneView === 'output'
-                  ? 'text-slate-100 border-b-2 border-violet-400 -mb-px'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Output
-            </button>
-            <button
-              onClick={() => setRightPaneView('diff')}
-              disabled={!result}
-              className={`px-4 py-2 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                rightPaneView === 'diff'
-                  ? 'text-slate-100 border-b-2 border-violet-400 -mb-px'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Diff
-            </button>
-          </div>
-
-          {/* Pane content */}
-          <div className="flex-1 overflow-auto">
-            {rightPaneView === 'diff' && diffChunks ? (
-              <DiffView chunks={diffChunks} />
-            ) : (
-              <div className="p-4 text-sm font-mono whitespace-pre-wrap">
-                {result?.output ?? ''}
-                {result?.warnings.length ? <div className="mt-4 text-amber-400">{result.warnings.join(' | ')}</div> : null}
-                {result && (
-                  <div className="mt-2 text-xs text-slate-400">
-                    budget: {result.targetTokens ?? 'none'} | reached: {typeof result.budgetReached === 'boolean' ? String(result.budgetReached) : 'n/a'} | rejected transforms: {result.rejectedTransforms.length} | safety issues: {result.safetyIssues.length}
-                  </div>
-                )}
-                {result?.error ? <div className="mt-4 text-red-400">{result.error}</div> : null}
-                {result ? (
-                  <div className="mt-3 inline-flex items-center gap-2">
-                    <select
-                      value={singleExportFormat}
-                      onChange={(e) => setSingleExportFormat(e.target.value as ExportFormat)}
-                      className="text-xs px-2 py-1 bg-slate-700 rounded"
-                    >
-                      <option value="txt">.txt</option>
-                      <option value="md">.md</option>
-                      <option value="json">.json</option>
-                    </select>
-                    <button
-                      className="text-xs px-2 py-1 bg-slate-700 rounded"
-                      onClick={() => {
-                        const payload = outputForFormat({ output: result.output, mode: result.mode }, singleExportFormat);
-                        download(payload.filename, payload.content);
-                      }}
-                    >
-                      Download output
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
+      {/* ── Main split: input | result tabs ── */}
+      <div
+        className="flex flex-1 overflow-hidden"
+        onDrop={(e) => void onDrop(e)}
+        onDragOver={(e) => e.preventDefault()}
+      >
+        {/* Left: input */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={PLACEHOLDER}
+            className="flex-1 p-4 bg-slate-900 text-sm font-mono resize-none outline-none"
+            spellCheck={false}
+          />
+          {!input && (
+            <div className="border-t border-slate-800 px-4 py-1.5 text-[11px] text-slate-600 shrink-0">
+              Drag &amp; drop files · supports text, markdown, code, logs, JSON, YAML
+            </div>
+          )}
         </div>
+
+        {/* Right: result tabs */}
+        <ResultTabs
+          result={result}
+          input={input}
+          onDownloadOutput={handleDownloadOutput}
+          onDownloadReport={handleDownloadReport}
+        />
       </div>
 
-      {result ? renderWhatChanged(result) : null}
-
-      {batchRows.length > 0 ? (
-        <div className="border-t border-slate-700 p-4 overflow-auto">
-          <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
-            <span>Batch mode</span>
-            <span className="font-mono">{mode.toUpperCase()}</span>
-            <span className="ml-4">Batch export format</span>
-            <select
-              value={batchExportFormat}
-              onChange={(e) => setBatchExportFormat(e.target.value as ExportFormat)}
-              className="text-xs px-2 py-1 bg-slate-700 rounded"
-            >
-              <option value="txt">.txt</option>
-              <option value="md">.md</option>
-              <option value="json">.json</option>
-            </select>
+      {/* ── Batch results ── */}
+      {batchRows.length > 0 && (
+        <div className="border-t border-slate-700 p-4 overflow-auto shrink-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-medium text-slate-300">
+              Batch — {batchRows.length} file{batchRows.length !== 1 ? 's' : ''}
+            </span>
+            <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">
+              {mode.toUpperCase()}
+            </span>
+            <div className="ml-auto flex items-center gap-2 text-slate-400">
+              <span>Export as:</span>
+              <select
+                value={batchExportFormat}
+                onChange={(e) => setBatchExportFormat(e.target.value as ExportFormat)}
+                className="text-xs px-2 py-1 bg-slate-700 rounded"
+              >
+                <option value="txt">.txt</option>
+                <option value="md">.md</option>
+                <option value="json">.json</option>
+              </select>
+              <button
+                className="px-2 py-1 bg-slate-700 rounded hover:bg-slate-600 transition-colors"
+                onClick={exportBatchAll}
+                title="All outputs in one file"
+              >
+                Download all
+              </button>
+              <button
+                className="px-2 py-1 bg-slate-700 rounded hover:bg-slate-600 transition-colors"
+                onClick={exportBatchSummary}
+                title="Summary JSON with totals and settings"
+              >
+                Summary JSON
+              </button>
+            </div>
           </div>
           <table className="text-xs w-full">
-            <thead><tr><th className="text-left">Filename</th><th>Orig chars</th><th>Out chars</th><th>Tok before</th><th>Tok after</th><th>Ratio</th><th>Status</th><th>Export</th></tr></thead>
+            <thead>
+              <tr className="text-left text-slate-500 border-b border-slate-800">
+                <th className="pb-1 font-normal">File</th>
+                <th className="pb-1 font-normal text-right pr-3">Chars in</th>
+                <th className="pb-1 font-normal text-right pr-3">Chars out</th>
+                <th className="pb-1 font-normal text-right pr-3">~Tok in</th>
+                <th className="pb-1 font-normal text-right pr-3">~Tok out</th>
+                <th className="pb-1 font-normal text-right pr-3">Ratio</th>
+                <th className="pb-1 font-normal text-right pr-3">Status</th>
+                <th className="pb-1 font-normal text-right">Export</th>
+              </tr>
+            </thead>
             <tbody>
               {batchRows.map((r) => (
-                <tr key={r.filename} className="border-t border-slate-800">
-                  <td>{r.filename}</td><td>{r.originalChars}</td><td>{r.outputChars}</td><td>{r.estimatedTokensBefore}</td><td>{r.estimatedTokensAfter}</td><td>{r.ratio}</td><td>{r.status}</td>
-                  <td>
+                <tr key={r.filename} className="border-t border-slate-800/50 hover:bg-slate-800/20">
+                  <td className="py-1 font-mono text-slate-300">{r.filename}</td>
+                  <td className="py-1 text-right text-slate-400 pr-3">
+                    {r.result.metrics.originalChars.toLocaleString()}
+                  </td>
+                  <td className="py-1 text-right text-slate-400 pr-3">
+                    {r.result.metrics.outputChars.toLocaleString()}
+                  </td>
+                  <td className="py-1 text-right text-slate-400 pr-3">
+                    {r.result.metrics.estimatedTokensBefore.toLocaleString()}
+                  </td>
+                  <td className="py-1 text-right text-slate-400 pr-3">
+                    {r.result.metrics.estimatedTokensAfter.toLocaleString()}
+                  </td>
+                  <td className="py-1 text-right text-slate-400 pr-3">{r.ratio}</td>
+                  <td className="py-1 text-right pr-3">
+                    <span className={r.status === 'ok' ? 'text-green-400' : 'text-red-400'}>
+                      {r.status}
+                    </span>
+                  </td>
+                  <td className="py-1 text-right">
                     <button
-                      className="px-2 py-1 bg-slate-700 rounded mr-1"
+                      className="px-2 py-0.5 bg-slate-700 rounded mr-1 hover:bg-slate-600 transition-colors"
                       onClick={() => {
-                        const payload = outputForFormat({ output: r.output, filename: r.filename, mode: r.mode }, batchExportFormat);
+                        const payload = outputForFormat(
+                          { output: r.result.output, filename: r.filename, mode: r.result.mode },
+                          batchExportFormat,
+                        );
                         download(payload.filename, payload.content);
                       }}
                     >
                       Output
+                    </button>
+                    <button
+                      className="px-2 py-0.5 bg-slate-700 rounded hover:bg-slate-600 transition-colors"
+                      onClick={() => {
+                        const report = createCompressionReport(r.result);
+                        download(
+                          `${safeFilename(r.filename.replace(/\.[^.]+$/, ''))}.report.json`,
+                          JSON.stringify(report, null, 2),
+                        );
+                      }}
+                    >
+                      Report
                     </button>
                   </td>
                 </tr>
@@ -385,10 +504,28 @@ export default function App() {
             </tbody>
           </table>
         </div>
-      ) : null}
+      )}
 
-      <footer className="border-t border-slate-800 px-6 py-3 text-[11px] text-slate-500">
-        One-way compression only. Light/Normal favor readability; Heavy/Ultra favor token savings. Custom: full control. Privacy: all processing is local in your browser.
+      {/* ── Footer ── */}
+      <footer className="border-t border-slate-800 px-5 py-3 text-[11px] text-slate-600 flex flex-wrap items-center gap-x-4 gap-y-1 shrink-0">
+        <span>
+          All processing runs locally in your browser — no upload, no accounts, no telemetry.
+        </span>
+        <span className="text-slate-700">·</span>
+        <span>
+          CLI:{' '}
+          <code className="font-mono text-slate-500">npm install -g tokentrim</code>
+        </span>
+        <span className="text-slate-700">·</span>
+        <a
+          href={GITHUB_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-slate-400 transition-colors"
+        >
+          GitHub ↗
+        </a>
+        <span className="ml-auto">v{TOKENTRIM_VERSION}</span>
       </footer>
     </div>
   );

@@ -15,4 +15,14 @@ describe('tokenizer adapters', () => {
     expect(b.exact).toBe(false);
     expect(a.tokens).toBeGreaterThan(0);
   });
+
+  it('all tokenizer kinds report exact=false until exact adapters are available', () => {
+    const kinds = ['approx-generic', 'openai-cl100k', 'openai-o200k'] as const;
+    for (const kind of kinds) {
+      const r = estimateTokens('test text with multiple words', kind);
+      expect(r.exact).toBe(false);
+      expect(r.tokenizer).toBe(kind);
+      expect(r.tokens).toBeGreaterThan(0);
+    }
+  });
 });

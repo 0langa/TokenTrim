@@ -109,6 +109,7 @@ function riskCategoryFromRisk(risk: RiskLevel): RiskEvent['category'] {
 }
 
 export function compress(text: string, options: CompressionOptions): CompressionResult {
+  const startMs = performance.now();
   const mode = modeFromOptions(options);
   const profile = profileFromOptions(options);
   const originalChars = text.length;
@@ -143,9 +144,12 @@ export function compress(text: string, options: CompressionOptions): Compression
       };
 
       const before = output;
+      const transformStart = performance.now();
       const result = transform.apply(before, ctx);
+      result.stat.durationMs = performance.now() - transformStart;
       const issues = validateSemanticSafety(before, result.output, protectedRun.spans, protectedRun.spans);
-      const hasError = issues.some((i) => i.severity === 'error');
+      const allowedCategories = new Set(result.allowedSafetyCategories ?? []);
+      const hasError = issues.some((i) => i.severity === 'error' && !allowedCategories.has(i.category));
 
       if (hasError) {
         rejectedTransforms.push(id);
@@ -184,6 +188,7 @@ export function compress(text: string, options: CompressionOptions): Compression
       profile,
       targetTokens: options.targetTokens,
       budgetReached,
+      durationMs: performance.now() - startMs,
       metrics: {
         originalChars,
         outputChars,
@@ -218,6 +223,7 @@ export function compress(text: string, options: CompressionOptions): Compression
       profile,
       targetTokens: options.targetTokens,
       budgetReached: options.targetTokens ? false : undefined,
+      durationMs: performance.now() - startMs,
       metrics: {
         originalChars,
         outputChars: originalChars,

@@ -21,6 +21,7 @@ export function createCompressionReport(result: CompressionResult): CompressionE
     profile: result.profile,
     targetTokens: result.targetTokens,
     budgetReached: result.budgetReached,
+    durationMs: result.durationMs,
     transforms: result.report.transformStats,
     safetyIssues: result.safetyIssues,
     rejectedTransforms: result.rejectedTransforms,

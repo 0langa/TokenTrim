@@ -1,0 +1,49 @@
+2026-05-02T09:00:01.123Z INFO  Starting build pipeline v3.2.1
+2026-05-02T09:00:01.124Z INFO  Loading configuration from ci/config.yml
+2026-05-02T09:00:01.125Z INFO  Build ID: build-20260502-001
+2026-05-02T09:00:01.200Z INFO  Cloning repository: https://github.com/org/repo
+2026-05-02T09:00:02.100Z INFO  Cloning repository: https://github.com/org/repo
+2026-05-02T09:00:02.200Z INFO  Cloning repository: https://github.com/org/repo
+2026-05-02T09:00:03.000Z INFO  Repository cloned successfully
+2026-05-02T09:00:03.100Z INFO  Running: npm install
+2026-05-02T09:00:03.101Z INFO  Running: npm install
+2026-05-02T09:00:05.000Z INFO  npm install completed in 1.9s
+2026-05-02T09:00:05.001Z INFO  Running: npm run typecheck
+2026-05-02T09:00:05.002Z INFO  Running: npm run typecheck
+2026-05-02T09:00:05.003Z INFO  Running: npm run typecheck
+2026-05-02T09:00:12.000Z INFO  TypeScript check passed (0 errors)
+2026-05-02T09:00:12.001Z INFO  Running: npm run lint
+2026-05-02T09:00:12.002Z INFO  Running: npm run lint
+2026-05-02T09:00:15.500Z WARN  ESLint: 3 warnings found
+2026-05-02T09:00:15.501Z WARN  src/utils/helper.ts:42: 'unusedVar' is defined but never used
+2026-05-02T09:00:15.502Z WARN  src/api/client.ts:18: Prefer const over let
+2026-05-02T09:00:15.503Z WARN  src/components/Button.tsx:7: Missing display name
+2026-05-02T09:00:15.504Z INFO  Running: npm test
+2026-05-02T09:00:15.505Z INFO  Running: npm test
+2026-05-02T09:00:15.506Z INFO  Running: npm test
+2026-05-02T09:00:28.000Z INFO  Test suite: 142 passed, 0 failed
+2026-05-02T09:00:28.001Z INFO  Running: npm run build
+2026-05-02T09:00:28.002Z INFO  Running: npm run build
+2026-05-02T09:00:28.003Z INFO  Running: npm run build
+2026-05-02T09:00:45.000Z INFO  Build completed successfully
+2026-05-02T09:00:45.001Z INFO  Output size: 2.4MB (gzipped: 0.8MB)
+2026-05-02T09:00:45.100Z INFO  Pushing Docker image: registry.example.com/app:build-20260502-001
+2026-05-02T09:00:45.101Z INFO  Pushing Docker image: registry.example.com/app:build-20260502-001
+2026-05-02T09:00:45.102Z INFO  Pushing Docker image: registry.example.com/app:build-20260502-001
+2026-05-02T09:00:55.000Z INFO  Docker image pushed successfully
+2026-05-02T09:00:55.001Z INFO  Deploying to staging environment
+2026-05-02T09:00:55.002Z INFO  Deploying to staging environment
+2026-05-02T09:01:10.000Z ERROR ServiceUnavailable: Health check failed for pod app-staging-7d9f4b-xkl2p
+2026-05-02T09:01:10.001Z INFO  Retrying health check (attempt 1/3)
+2026-05-02T09:01:20.000Z ERROR ServiceUnavailable: Health check failed for pod app-staging-7d9f4b-xkl2p
+2026-05-02T09:01:20.001Z INFO  Retrying health check (attempt 2/3)
+2026-05-02T09:01:30.000Z ERROR ServiceUnavailable: Health check failed for pod app-staging-7d9f4b-xkl2p
+2026-05-02T09:01:30.001Z ERROR Deployment failed after 3 retries
+2026-05-02T09:01:30.002Z ERROR Stack trace:
+2026-05-02T09:01:30.003Z ERROR   at HealthChecker.verify (/app/deploy/health.js:45:12)
+2026-05-02T09:01:30.004Z ERROR   at Deployer.deploy (/app/deploy/index.js:112:22)
+2026-05-02T09:01:30.005Z ERROR   at Pipeline.run (/app/pipeline/index.js:88:15)
+2026-05-02T09:01:30.006Z INFO  Rollback initiated
+2026-05-02T09:01:35.000Z INFO  Rollback completed to version build-20260501-007
+2026-05-02T09:01:35.001Z INFO  Build pipeline finished with status: FAILED
+2026-05-02T09:01:35.002Z INFO  Duration: 94.0s

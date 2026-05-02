@@ -1,7 +1,7 @@
 {
   "name": "tokentrim",
   "private": true,
-  "version": "1.3.0",
+  "version": "2.0.0",
   "type": "module",
   "bin": {
     "tokentrim": "dist/cli.js"
@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "benchmark": "node scripts/benchmark.mjs"
   },
   "dependencies": {
     "fast-diff": "^1.3.0",

@@ -6,9 +6,12 @@ import { optimizeToBudget } from './compression/budgetOptimizer';
 import { createCompressionReport } from './compression/reporting';
 import { mapLegacyProfileToMode } from './compression/modes';
 import { listProfiles } from './compression/profiles';
-import { getAllTransformIds } from './compression/transformRegistry';
+import { getAllTransformIds, getAllTransforms } from './compression/transformRegistry';
+import { estimateTokens } from './compression/tokenizers/index';
 import { TOKENTRIM_VERSION } from './version';
 import type { CompressionMode, CompressionOptions, CompressionProfile, RiskLevel, TokenizerKind } from './compression/types';
+import { loadConfig, STARTER_CONFIG, type CliConfig } from './cli/config';
+import { loadIgnorePatterns, walkFilesWithIgnore } from './cli/ignorePatterns';
 
 type CliFormat = 'json' | 'text';
 
@@ -24,6 +27,26 @@ const VALID_FORMATS: CliFormat[] = ['json', 'text'];
 const VALID_PROFILES: CompressionProfile[] = listProfiles();
 const VALID_TRANSFORMS = new Set(getAllTransformIds());
 
+const REPO_TEXT_EXTENSIONS = new Set([
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+  '.md', '.txt', '.rst',
+  '.json', '.jsonc',
+  '.yaml', '.yml', '.toml',
+  '.css', '.scss',
+  '.html',
+  '.py', '.rb', '.rs', '.go', '.java', '.sh', '.bash',
+  '.env.example', '.env.template',
+]);
+
+const REPO_PRIORITY_NAMES = [
+  'README.md', 'readme.md', 'README.rst',
+  'package.json', 'tsconfig.json', 'tsconfig.base.json',
+  'vite.config.ts', 'vite.config.js', 'next.config.js', 'next.config.ts',
+  'Makefile', 'Dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
+];
+
+const REPO_MAX_FILE_CHARS = 40_000;
+
 function fail(message: string): never {
   throw new Error(message);
 }
@@ -34,7 +57,7 @@ function parseArgs(argv: string[]) {
   for (let i = 0; i < argv.length; i += 1) {
     const part = argv[i];
     if (part.startsWith('--')) {
-      if (part === '--recursive' || part === '--dry-run' || part === '--help') {
+      if (part === '--recursive' || part === '--dry-run' || part === '--help' || part === '--report') {
         flags.set(part, true);
       } else {
         const value = argv[i + 1];
@@ -73,18 +96,18 @@ function parseMode(flags: Map<string, string | true>): CompressionMode | undefin
   return undefined;
 }
 
-function parseOptions(flags: Map<string, string | true>): CompressionOptions {
-  const mode = parseMode(flags);
-  const profile = readEnum((flags.get('--profile') as string | undefined), VALID_PROFILES, '--profile');
-  const tokenizer = readEnum((flags.get('--tokenizer') as string | undefined) ?? 'approx-generic', VALID_TOKENIZERS, '--tokenizer');
-  const maxRisk = readEnum((flags.get('--max-risk') as string | undefined), VALID_RISKS, '--max-risk');
-  const targetTokens = parsePositiveInt(flags.get('--target-tokens') as string | undefined, '--target-tokens');
+function parseOptions(flags: Map<string, string | true>, cfg: CliConfig): CompressionOptions {
+  // CLI flags override config
+  const mode = parseMode(flags) ?? cfg.mode;
+  const profile = readEnum((flags.get('--profile') as string | undefined), VALID_PROFILES, '--profile') ?? cfg.profile;
+  const tokenizer = readEnum((flags.get('--tokenizer') as string | undefined) ?? (cfg.tokenizer ?? 'approx-generic'), VALID_TOKENIZERS, '--tokenizer');
+  const maxRisk = readEnum((flags.get('--max-risk') as string | undefined), VALID_RISKS, '--max-risk') ?? cfg.maxRisk;
+  const targetTokens = parsePositiveInt(flags.get('--target-tokens') as string | undefined, '--target-tokens') ?? cfg.targetTokens;
 
   const enabledRaw = flags.get('--enabled-transforms') as string | undefined;
   const enabledTransforms = enabledRaw
-    ?.split(',')
-    .map((x) => x.trim())
-    .filter(Boolean);
+    ? enabledRaw.split(',').map((x) => x.trim()).filter(Boolean)
+    : cfg.enabledTransforms;
 
   if (enabledTransforms) {
     const unknown = enabledTransforms.filter((id) => !VALID_TRANSFORMS.has(id));
@@ -93,14 +116,7 @@ function parseOptions(flags: Map<string, string | true>): CompressionOptions {
     }
   }
 
-  return {
-    mode,
-    profile,
-    tokenizer,
-    maxRisk,
-    targetTokens,
-    enabledTransforms,
-  };
+  return { mode, profile, tokenizer, maxRisk, targetTokens, enabledTransforms };
 }
 
 function runCompression(text: string, options: CompressionOptions) {
@@ -108,6 +124,7 @@ function runCompression(text: string, options: CompressionOptions) {
   return compress(text, options);
 }
 
+/** Legacy walkFiles without ignore (kept for backward compat within non-recursive batch) */
 function walkFiles(dir: string, recursive: boolean): string[] {
   const out: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -121,13 +138,52 @@ function walkFiles(dir: string, recursive: boolean): string[] {
   return out;
 }
 
+function buildFileTree(files: string[], root: string): string {
+  const rel = files.map((f) => path.relative(root, f).replace(/\\/g, '/'));
+  rel.sort();
+  const lines: string[] = [];
+  let lastDir = '';
+  for (const r of rel) {
+    const parts = r.split('/');
+    const dir = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+    if (dir !== lastDir) {
+      if (dir) lines.push(`${dir}/`);
+      lastDir = dir;
+    }
+    const indent = parts.length > 1 ? '  '.repeat(parts.length - 1) : '';
+    lines.push(`${indent}${parts[parts.length - 1]}`);
+  }
+  return lines.join('\n');
+}
+
 function printHelp(ctx: CliContext): void {
   ctx.stdout.write(`TokenTrim v${TOKENTRIM_VERSION}\n`);
-  ctx.stdout.write('tokentrim compress <file> --mode heavy --out file.trim.md\n');
-  ctx.stdout.write('tokentrim batch <dir> --recursive --out ./trimmed --profile markdown-docs\n');
-  ctx.stdout.write('tokentrim report <file> --mode heavy --out report.json\n');
-  ctx.stdout.write('tokentrim stdin --mode normal\n');
-  ctx.stdout.write(`profiles: ${VALID_PROFILES.join(', ')}\n`);
+  ctx.stdout.write('\nCommands:\n');
+  ctx.stdout.write('  tokentrim compress <file> [options]      Compress a single file\n');
+  ctx.stdout.write('  tokentrim batch <dir> [options]          Batch compress a directory\n');
+  ctx.stdout.write('  tokentrim report <file> [options]        Generate compression report\n');
+  ctx.stdout.write('  tokentrim stdin [options]                Compress stdin\n');
+  ctx.stdout.write('  tokentrim repo <path> [options]          Generate local context pack\n');
+  ctx.stdout.write('  tokentrim init                           Create starter .tokentrimrc.json\n');
+  ctx.stdout.write('  tokentrim list-transforms [--format json] List available transforms\n');
+  ctx.stdout.write('  tokentrim list-profiles [--format json]  List available profiles\n');
+  ctx.stdout.write('  tokentrim list-tokenizers                List tokenizer kinds\n');
+  ctx.stdout.write('  tokentrim list-modes                     List compression modes\n');
+  ctx.stdout.write('\nOptions:\n');
+  ctx.stdout.write('  --mode light|normal|heavy|ultra|custom\n');
+  ctx.stdout.write('  --profile general|agent-context|repo-context|logs|markdown-docs|chat-history\n');
+  ctx.stdout.write('  --target-tokens <n>\n');
+  ctx.stdout.write('  --max-risk safe|low|medium|high\n');
+  ctx.stdout.write('  --tokenizer approx-generic|openai-cl100k|openai-o200k\n');
+  ctx.stdout.write('  --enabled-transforms id1,id2,...\n');
+  ctx.stdout.write('  --out <path>\n');
+  ctx.stdout.write('  --report           Write .report.json alongside --out (batch/repo)\n');
+  ctx.stdout.write('  --recursive        Recurse into subdirectories (batch)\n');
+  ctx.stdout.write('  --dry-run          Simulate without writing files\n');
+  ctx.stdout.write('  --format json|text Output format (report/list commands)\n');
+  ctx.stdout.write(`\nProfiles: ${VALID_PROFILES.join(', ')}\n`);
+  ctx.stdout.write('\nConfig: .tokentrimrc | .tokentrimrc.json | tokentrim.config.json\n');
+  ctx.stdout.write('Ignore:  .tokentrimignore (gitignore-style, for batch --recursive and repo)\n');
 }
 
 export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdout, stderr: process.stderr }): number {
@@ -140,9 +196,111 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
       return 0;
     }
 
-    const options = parseOptions(flags);
+    // Load config from cwd (all commands respect it)
+    const cfg = loadConfig(process.cwd());
+
+    // --- Discovery commands ---
+
+    if (cmd === 'list-transforms') {
+      const fmt = readEnum((flags.get('--format') as string | undefined) ?? 'text', VALID_FORMATS, '--format');
+      const transforms = getAllTransforms();
+      if (fmt === 'json') {
+        ctx.stdout.write(JSON.stringify(transforms.map((t) => ({
+          id: t.id,
+          label: t.label,
+          risk: t.risk,
+          defaultModes: t.defaultModes,
+          profiles: t.profiles ?? [],
+          profileOnly: t.profileOnly ?? false,
+          description: t.description ?? '',
+        })), null, 2) + '\n');
+      } else {
+        for (const t of transforms) {
+          ctx.stdout.write(`${t.id}\n`);
+          ctx.stdout.write(`  label:       ${t.label}\n`);
+          ctx.stdout.write(`  risk:        ${t.risk}\n`);
+          ctx.stdout.write(`  modes:       ${t.defaultModes.join(', ')}\n`);
+          if (t.profiles?.length) ctx.stdout.write(`  profiles:    ${t.profiles.join(', ')}\n`);
+          if (t.description) ctx.stdout.write(`  description: ${t.description}\n`);
+          ctx.stdout.write('\n');
+        }
+      }
+      return 0;
+    }
+
+    if (cmd === 'list-profiles') {
+      const fmt = readEnum((flags.get('--format') as string | undefined) ?? 'text', VALID_FORMATS, '--format');
+      const profiles = VALID_PROFILES;
+      const descriptions: Record<string, string> = {
+        'general': 'General-purpose text compression',
+        'agent-context': 'AI prompts, agent instructions, and context documents',
+        'repo-context': 'Source code and project files for agent context packs',
+        'logs': 'Server logs, CI output, and error dumps',
+        'markdown-docs': 'Markdown documentation, READMEs, and guides',
+        'chat-history': 'Conversation history and meeting notes',
+      };
+      if (fmt === 'json') {
+        ctx.stdout.write(JSON.stringify(profiles.map((p) => ({ id: p, description: descriptions[p] ?? '' })), null, 2) + '\n');
+      } else {
+        for (const p of profiles) {
+          ctx.stdout.write(`${p}\n  ${descriptions[p] ?? ''}\n\n`);
+        }
+      }
+      return 0;
+    }
+
+    if (cmd === 'list-tokenizers') {
+      const fmt = readEnum((flags.get('--format') as string | undefined) ?? 'text', VALID_FORMATS, '--format');
+      const tokenizers = VALID_TOKENIZERS.map((k) => ({ id: k, exact: false, note: 'approximate estimate' }));
+      if (fmt === 'json') {
+        ctx.stdout.write(JSON.stringify(tokenizers, null, 2) + '\n');
+      } else {
+        for (const t of tokenizers) {
+          ctx.stdout.write(`${t.id}  (${t.note})\n`);
+        }
+      }
+      return 0;
+    }
+
+    if (cmd === 'list-modes') {
+      const fmt = readEnum((flags.get('--format') as string | undefined) ?? 'text', VALID_FORMATS, '--format');
+      const modes = [
+        { id: 'light', description: 'Minimal structural cleanup only (~5-15% savings)' },
+        { id: 'normal', description: 'Balanced compression (~15-30% savings)' },
+        { id: 'heavy', description: 'Aggressive compression (~30-50% savings)' },
+        { id: 'ultra', description: 'Maximum compression, reduced readability (~40-65% savings)' },
+        { id: 'custom', description: 'Manual transform selection' },
+      ];
+      if (fmt === 'json') {
+        ctx.stdout.write(JSON.stringify(modes, null, 2) + '\n');
+      } else {
+        for (const m of modes) {
+          ctx.stdout.write(`${m.id}\n  ${m.description}\n\n`);
+        }
+      }
+      return 0;
+    }
+
+    // --- Init ---
+
+    if (cmd === 'init') {
+      const outArg = flags.get('--out') as string | undefined;
+      const target = outArg ?? path.join(process.cwd(), '.tokentrimrc.json');
+      if (fs.existsSync(target)) {
+        ctx.stderr.write(`Config already exists: ${path.basename(target)}\n`);
+        return 1;
+      }
+      fs.writeFileSync(target, JSON.stringify(STARTER_CONFIG, null, 2) + '\n', 'utf8');
+      ctx.stdout.write(`Created ${path.basename(target)}\n`);
+      return 0;
+    }
+
+    // --- Compression commands ---
+
+    const options = parseOptions(flags, cfg);
     const outFile = flags.get('--out') as string | undefined;
-    const reportPath = flags.get('--report') as string | undefined;
+    const writeReport = flags.has('--report');
+    const reportPath = typeof flags.get('--report') === 'string' ? (flags.get('--report') as string) : undefined;
     const dryRun = flags.has('--dry-run');
 
     if (cmd === 'stdin') {
@@ -186,13 +344,29 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
       const dir = positional[1];
       if (!dir) fail('Missing directory');
       const recursive = flags.has('--recursive');
-      const files = walkFiles(dir, recursive);
-      if (!recursive && files.some((f) => path.dirname(f) !== path.resolve(dir))) {
-        fail('Non-recursive batch cannot traverse nested directories. Use --recursive.');
+
+      let files: string[];
+      let skippedCount = 0;
+
+      if (recursive) {
+        const ignorePatterns = loadIgnorePatterns(dir);
+        const walkResult = walkFilesWithIgnore(dir, ignorePatterns, dir);
+        files = walkResult.included;
+        skippedCount = walkResult.skipped;
+      } else {
+        files = walkFiles(dir, false);
       }
 
+      ctx.stdout.write(`Processing ${files.length} files${skippedCount > 0 ? `, ${skippedCount} skipped` : ''}...\n`);
+
       for (const file of files) {
-        const text = fs.readFileSync(file, 'utf8');
+        let text: string;
+        try {
+          text = fs.readFileSync(file, 'utf8');
+        } catch {
+          ctx.stdout.write(`${path.relative(dir, file)}\t-\t-\tfailed (unreadable)\n`);
+          continue;
+        }
         const result = runCompression(text, options);
         const rel = path.relative(dir, file);
         ctx.stdout.write(`${rel}\t${result.metrics.originalChars}\t${result.metrics.outputChars}\t${result.error ? 'failed' : 'ok'}\n`);
@@ -201,17 +375,132 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
           const target = path.join(outFile, `${rel}.trim.txt`);
           fs.mkdirSync(path.dirname(target), { recursive: true });
           fs.writeFileSync(target, result.output, 'utf8');
-          if (reportPath) {
-            const reportOut = path.join(outFile, `${rel}.report.json`);
-            fs.mkdirSync(path.dirname(reportOut), { recursive: true });
-            fs.writeFileSync(reportOut, JSON.stringify(createCompressionReport(result), null, 2), 'utf8');
+          if (writeReport) {
+            const rpt = path.join(outFile, `${rel}.report.json`);
+            fs.mkdirSync(path.dirname(rpt), { recursive: true });
+            fs.writeFileSync(rpt, JSON.stringify(createCompressionReport(result), null, 2), 'utf8');
           }
         }
       }
       return 0;
     }
 
-    fail(`Unknown command: ${cmd}`);
+    // --- Repo/context pack ---
+
+    if (cmd === 'repo' || cmd === 'context') {
+      const dir = path.resolve(positional[1] ?? '.');
+      if (!fs.existsSync(dir)) fail(`Directory not found: ${dir}`);
+
+      const ignorePatterns = loadIgnorePatterns(dir);
+      const walkResult = walkFilesWithIgnore(dir, ignorePatterns, dir);
+
+      const repoOptions: CompressionOptions = {
+        ...options,
+        mode: options.mode ?? 'heavy',
+        profile: options.profile ?? 'repo-context',
+        maxRisk: options.maxRisk ?? 'medium',
+      };
+
+      // Partition: priority + text files under size limit
+      const allFiles = walkResult.included.filter((f) => {
+        const ext = path.extname(f).toLowerCase();
+        const base = path.basename(f);
+        return REPO_TEXT_EXTENSIONS.has(ext) || base === 'Makefile' || base === 'Dockerfile';
+      });
+
+      // Sort: priority files first, then alphabetical
+      const isPriority = (f: string) => REPO_PRIORITY_NAMES.includes(path.basename(f));
+      allFiles.sort((a, b) => {
+        const pa = isPriority(a) ? 0 : 1;
+        const pb = isPriority(b) ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return a.localeCompare(b);
+      });
+
+      const sections: string[] = [];
+      const includedFiles: string[] = [];
+      let totalCharsBefore = 0;
+      let totalCharsAfter = 0;
+      let skippedSize = 0;
+
+      for (const file of allFiles) {
+        let text: string;
+        try {
+          text = fs.readFileSync(file, 'utf8');
+        } catch {
+          continue;
+        }
+        if (text.length > REPO_MAX_FILE_CHARS) {
+          skippedSize += 1;
+          continue;
+        }
+
+        const result = runCompression(text, repoOptions);
+        const rel = path.relative(dir, file).replace(/\\/g, '/');
+        const ext = path.extname(file).slice(1) || 'txt';
+
+        totalCharsBefore += result.metrics.originalChars;
+        totalCharsAfter += result.metrics.outputChars;
+        includedFiles.push(file);
+
+        sections.push(`### ${rel}\n\`\`\`${ext}\n${result.output}\n\`\`\``);
+      }
+
+      const tokenBefore = estimateTokens('x'.repeat(totalCharsBefore), repoOptions.tokenizer ?? 'approx-generic');
+      const tokenAfter = estimateTokens('x'.repeat(totalCharsAfter), repoOptions.tokenizer ?? 'approx-generic');
+      const savingsPct = totalCharsBefore > 0 ? Math.round((1 - totalCharsAfter / totalCharsBefore) * 100) : 0;
+
+      const tree = buildFileTree(includedFiles, dir);
+
+      const header = [
+        `# Repository Context: ${path.basename(dir)}`,
+        '',
+        `Generated by TokenTrim v${TOKENTRIM_VERSION}`,
+        '',
+        '## Summary',
+        '',
+        `| Field | Value |`,
+        `|---|---|`,
+        `| Root | ${dir} |`,
+        `| Files scanned | ${walkResult.included.length + walkResult.skipped} |`,
+        `| Files included | ${includedFiles.length} |`,
+        `| Files skipped | ${walkResult.skipped + (allFiles.length - includedFiles.length)} |`,
+        `| Skipped (size limit) | ${skippedSize} |`,
+        `| Chars before | ${totalCharsBefore.toLocaleString()} |`,
+        `| Chars after | ${totalCharsAfter.toLocaleString()} |`,
+        `| ~Tokens before | ~${tokenBefore.tokens.toLocaleString()} |`,
+        `| ~Tokens after | ~${tokenAfter.tokens.toLocaleString()} |`,
+        `| Savings | ${savingsPct}% |`,
+        `| Mode | ${repoOptions.mode} |`,
+        `| Profile | ${repoOptions.profile} |`,
+        `| Max risk | ${repoOptions.maxRisk} |`,
+        `| Tokenizer | ${repoOptions.tokenizer ?? 'approx-generic'} (approximate) |`,
+        '',
+        '## File Tree',
+        '',
+        '```',
+        tree,
+        '```',
+        '',
+        '## Source Files',
+      ].join('\n');
+
+      const output = [header, '', ...sections].join('\n\n');
+
+      if (!dryRun) {
+        if (outFile) {
+          fs.writeFileSync(outFile, output, 'utf8');
+          ctx.stdout.write(`Wrote context pack: ${outFile}\n`);
+          ctx.stdout.write(`  ${includedFiles.length} files | ~${savingsPct}% savings | ~${tokenAfter.tokens.toLocaleString()} tokens\n`);
+        } else {
+          ctx.stdout.write(output);
+        }
+      }
+
+      return 0;
+    }
+
+    fail(`Unknown command: ${cmd}. Run \`tokentrim help\` for usage.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     ctx.stderr.write(`Error: ${message}\n`);
