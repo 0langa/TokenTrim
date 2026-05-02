@@ -83,6 +83,7 @@ export default function App() {
   const [tokenizer, setTokenizer] = useState<TokenizerKind>('approx-generic');
   const [targetTokens, setTargetTokens] = useState<string>('');
   const [maxRisk, setMaxRisk] = useState<RiskLevel>('medium');
+  const [allowUnsafeTransforms, setAllowUnsafeTransforms] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [customTransforms, toggleCustomTransform] = useCustomTransforms();
@@ -103,9 +104,10 @@ export default function App() {
       profile,
       targetTokens: targetTokens ? Number(targetTokens) : undefined,
       maxRisk,
+      allowUnsafeTransforms,
       ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}),
     });
-  }, [input, mode, customTransforms, run, profile, tokenizer, targetTokens, maxRisk]);
+  }, [input, mode, customTransforms, run, profile, tokenizer, targetTokens, maxRisk, allowUnsafeTransforms]);
 
   function handlePresetSelect(preset: Preset) {
     setProfile(preset.profile);
@@ -133,6 +135,7 @@ export default function App() {
         profile,
         targetTokens: targetTokens ? Number(targetTokens) : undefined,
         maxRisk,
+        allowUnsafeTransforms,
         ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}),
       });
       rows.push({
@@ -160,6 +163,11 @@ export default function App() {
     setInput('');
     setMode('normal');
     setSelectedPreset(null);
+    setProfile('general');
+    setTokenizer('approx-generic');
+    setTargetTokens('');
+    setMaxRisk('medium');
+    setAllowUnsafeTransforms(false);
   }
 
   function handleDownloadOutput(format: ExportFormat) {
@@ -193,6 +201,7 @@ export default function App() {
       profile,
       maxRisk,
       tokenizer,
+      allowUnsafeTransforms,
     };
     download('tokentrim-batch-summary.json', JSON.stringify(summary, null, 2));
   }
@@ -227,136 +236,126 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Step 1: What are you compressing? ── */}
-      <div className="px-5 py-2.5 bg-slate-800/60 border-b border-slate-700 shrink-0">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider shrink-0">
-            What are you compressing?
-          </span>
-          <PresetSelector selected={selectedPreset} onSelect={handlePresetSelect} />
-        </div>
-      </div>
-
-      {/* ── Step 2: Controls ── */}
-      <div className="px-5 py-3 bg-slate-800/40 border-b border-slate-700 shrink-0">
-        <div className="flex flex-wrap items-end gap-4">
-          {/* Compression strength */}
-          <div>
-            <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5">
-              Compression strength
+      {/* ── Controls ── */}
+      <div className="px-5 py-3 bg-slate-800/40 border-b border-slate-700 shrink-0 space-y-3">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+          <div className="rounded border border-slate-700 bg-slate-900/40 p-3">
+            <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Quick Start</div>
+            <div className="text-[11px] text-slate-400 mb-2">Pick preset, choose strength, then paste/upload.</div>
+            <PresetSelector selected={selectedPreset} onSelect={handlePresetSelect} />
+            <div className="mt-3">
+              <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5">Compression strength</div>
+              <IntensitySelector
+                value={mode}
+                onChange={setMode}
+                enabledTransforms={customTransforms}
+                onTransformToggle={toggleCustomTransform}
+              />
             </div>
-            <IntensitySelector
-              value={mode}
-              onChange={setMode}
-              enabledTransforms={customTransforms}
-              onTransformToggle={toggleCustomTransform}
-            />
           </div>
 
-          {/* Advanced toggle */}
-          <button
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors pb-1.5"
-            title="Use case, risk, token budget, token counter"
-          >
-            {showAdvanced ? '▾' : '▸'} Advanced options
-          </button>
-
-          {/* Input controls — right-aligned */}
-          <div className="flex flex-wrap items-center gap-2 ml-auto">
-            <select
-              className="px-2 py-1 rounded bg-slate-700 text-xs text-slate-200"
-              onChange={(e) => {
-                const sample = SAMPLE_INPUTS.find((s) => s.id === e.target.value);
-                if (sample) setInput(sample.text);
-              }}
-              defaultValue=""
-            >
-              <option value="" disabled>
-                Load sample
-              </option>
-              {SAMPLE_INPUTS.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <label className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-200 cursor-pointer hover:bg-slate-600 transition-colors">
-              Upload files
+          <div className="rounded border border-slate-700 bg-slate-900/40 p-3">
+            <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Safety & Behavior</div>
+            <div className="flex flex-wrap gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-slate-500 uppercase tracking-wider">Use case</span>
+                <select
+                  value={profile}
+                  onChange={(e) => {
+                    setProfile(e.target.value as CompressionProfile);
+                    setSelectedPreset(null);
+                  }}
+                  className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs"
+                >
+                  {listProfiles().map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-slate-500 uppercase tracking-wider">Allowed risk</span>
+                <select
+                  value={maxRisk}
+                  onChange={(e) => setMaxRisk(e.target.value as RiskLevel)}
+                  className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs"
+                >
+                  <option value="safe">Safe</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+            </div>
+            <label className="mt-3 flex items-start gap-2">
               <input
-                type="file"
-                multiple
-                className="sr-only"
-                onChange={(e) => void onFilesSelected(e.target.files)}
+                type="checkbox"
+                checked={allowUnsafeTransforms}
+                onChange={(e) => setAllowUnsafeTransforms(e.target.checked)}
+                className="mt-0.5"
               />
+              <span className="text-xs text-amber-300 leading-tight">
+                Allow unsafe transforms
+                <span className="block text-[11px] text-slate-500">
+                  Expert mode: apply transforms even if safety checks flag semantic risk.
+                </span>
+              </span>
             </label>
+          </div>
+
+          <div className="rounded border border-slate-700 bg-slate-900/40 p-3">
+            <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Input Helpers</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="px-2 py-1 rounded bg-slate-700 text-xs text-slate-200"
+                onChange={(e) => {
+                  const sample = SAMPLE_INPUTS.find((s) => s.id === e.target.value);
+                  if (sample) setInput(sample.text);
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>Load sample</option>
+                {SAMPLE_INPUTS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+              <label className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-200 cursor-pointer hover:bg-slate-600 transition-colors">
+                Upload files
+                <input type="file" multiple className="sr-only" onChange={(e) => void onFilesSelected(e.target.files)} />
+              </label>
+              <button
+                className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                onClick={clearLocalState}
+              >
+                Reset all
+              </button>
+            </div>
             <button
-              className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
-              onClick={clearLocalState}
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="mt-3 text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors"
+              title="Token budget and tokenizer"
             >
-              Clear
+              {showAdvanced ? '▾' : '▸'} Advanced options
             </button>
           </div>
         </div>
 
-        {/* Advanced options panel */}
         {showAdvanced && (
-          <div className="mt-3 pt-3 border-t border-slate-700/60 flex flex-wrap gap-5">
+          <div className="rounded border border-slate-700 bg-slate-900/30 p-3 flex flex-wrap gap-5">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-slate-500 uppercase tracking-wider">Use case</span>
-              <select
-                value={profile}
-                onChange={(e) => {
-                  setProfile(e.target.value as CompressionProfile);
-                  setSelectedPreset(null);
-                }}
-                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs"
-                title="Selects transforms optimized for your content type"
-              >
-                {listProfiles().map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-slate-500 uppercase tracking-wider">
-                Allowed risk
-              </span>
-              <select
-                value={maxRisk}
-                onChange={(e) => setMaxRisk(e.target.value as RiskLevel)}
-                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs"
-                title="Higher risk allows more aggressive transforms. Unsafe outputs are automatically rejected."
-              >
-                <option value="safe">Safe</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High (aggressive)</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-slate-500 uppercase tracking-wider">
-                Target token budget
-              </span>
+              <span className="text-[11px] text-slate-500 uppercase tracking-wider">Target token budget</span>
               <input
                 value={targetTokens}
                 onChange={(e) => setTargetTokens(e.target.value)}
                 placeholder="e.g. 4000"
-                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs w-24"
-                title="Stop compressing when output reaches this approximate token count"
+                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs w-28"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-slate-500 uppercase tracking-wider">
-                Token counter
-              </span>
+              <span className="text-[11px] text-slate-500 uppercase tracking-wider">Token counter</span>
               <select
                 value={tokenizer}
                 onChange={(e) => setTokenizer(e.target.value as TokenizerKind)}
                 className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs"
-                title="All counters return approximate estimates — not guaranteed to match model tokenizer output exactly"
               >
                 <option value="approx-generic">Generic (~approx)</option>
                 <option value="openai-cl100k">OpenAI cl100k (~approx)</option>

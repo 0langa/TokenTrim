@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.1 - 2026-05-02
+
+### Web App
+
+- Improved settings discoverability with a clearer control layout:
+  - `Quick Start` card for preset + strength
+  - `Safety & Behavior` card for profile/risk/unsafe-toggle
+  - `Input Helpers` card for sample/upload/reset actions
+- Kept advanced customization intact while moving secondary controls into a focused `Advanced options` section.
+- Added explicit `Allow unsafe transforms` user control so users can choose whether safety-rejected transforms are blocked or applied.
+- Improved reset behavior to restore all key UI settings to defaults, not just input text/mode.
+
 ## 2.0.0 - 2026-05-02
 
 ### Web App — Phase 3 Polish

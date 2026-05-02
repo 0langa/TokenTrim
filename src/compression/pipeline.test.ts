@@ -43,6 +43,20 @@ describe('compress pipeline', () => {
     expect(res.output).toContain('should not');
   });
 
+  it('can apply unsafe transforms when explicitly enabled', () => {
+    const input = 'You should not deploy this.';
+    const res = compress(input, {
+      mode: 'ultra',
+      enabledTransforms: ['caveman-compaction'],
+      maxRisk: 'high',
+      profile: 'general',
+      allowUnsafeTransforms: true,
+    });
+    expect(res.rejectedTransforms).not.toContain('caveman-compaction');
+    expect(res.output).not.toContain('should not');
+    expect(res.warnings.some((w) => w.includes('unsafe mode enabled'))).toBe(true);
+  });
+
   it('keeps markdown/code fences structure', () => {
     const md = '# H\n\nParagraph\n\n- one\n- two\n\n```ts\nconst x = 1\n```';
     const out = compress(md, { mode: 'heavy', profile: 'markdown-docs' });

@@ -151,11 +151,14 @@ export function compress(text: string, options: CompressionOptions): Compression
       const allowedCategories = new Set(result.allowedSafetyCategories ?? []);
       const hasError = issues.some((i) => i.severity === 'error' && !allowedCategories.has(i.category));
 
-      if (hasError) {
+      if (hasError && !options.allowUnsafeTransforms) {
         rejectedTransforms.push(id);
         safetyIssues.push(...issues);
         warnings.push(`Rejected transform ${id} due to semantic safety issues.`);
         continue;
+      }
+      if (hasError && options.allowUnsafeTransforms) {
+        warnings.push(`Applied ${id} despite semantic safety issues (unsafe mode enabled).`);
       }
 
       output = result.output;

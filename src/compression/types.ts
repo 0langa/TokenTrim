@@ -127,6 +127,7 @@ export type CompressionOptions = {
   enabledTransforms?: string[];
   targetTokens?: number;
   maxRisk?: RiskLevel;
+  allowUnsafeTransforms?: boolean;
 };
 
 export type CompressionRequest = {
