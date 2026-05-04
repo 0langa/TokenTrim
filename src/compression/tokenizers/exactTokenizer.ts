@@ -6,6 +6,9 @@ export async function loadExactTokenizer(tokenizer: 'openai-cl100k' | 'openai-o2
   const mod = tokenizer === 'openai-o200k'
     ? await import('gpt-tokenizer/encoding/o200k_base')
     : await import('gpt-tokenizer/encoding/cl100k_base');
+  if (typeof mod.encode !== 'function') {
+    throw new Error(`Tokenizer ${tokenizer} loaded but encode is not a function`);
+  }
   _encode = mod.encode;
   _loadedTokenizer = tokenizer;
 }

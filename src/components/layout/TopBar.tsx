@@ -89,7 +89,7 @@ export function TopBar({ view, theme, onToggleTheme }: Props) {
       </div>
       <div className="ml-auto flex items-center gap-1">
         <span className="hidden sm:inline text-[11px] text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded mr-2">
-          local · no AI · no telemetry
+          local · private · no telemetry
         </span>
         <a
           href={GITHUB_URL}

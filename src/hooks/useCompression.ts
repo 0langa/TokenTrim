@@ -21,6 +21,9 @@ export function useCompression(): UseCompressionReturn {
       setResult(e.data);
       setProcessing(false);
     };
+    workerRef.current.onerror = () => {
+      setProcessing(false);
+    };
     return () => {
       workerRef.current?.terminate();
       if (timerRef.current) clearTimeout(timerRef.current);

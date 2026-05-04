@@ -1,6 +1,6 @@
 {
   "name": "tokentrim",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Compress AI context locally — deterministic transforms, protected spans, semantic safety validation. No upload. No AI. No telemetry.",
   "type": "module",
   "license": "MIT",

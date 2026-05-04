@@ -16,9 +16,14 @@ export function CopyButton({ result, requireUltraConfirm }: Props) {
 
   const handleCopy = async () => {
     if (!result || !ensureConfirmed()) return;
-    await navigator.clipboard.writeText(result.output);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(result.output);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      window.alert('Clipboard access denied. Copy manually from the output panel.');
+    }
   };
 
   return (

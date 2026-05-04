@@ -1,4 +1,4 @@
-let detectedVersion = '2.0.1';
+let detectedVersion = '2.1.0';
 
 try {
   if (typeof __TOKENTRIM_VERSION__ === 'string' && __TOKENTRIM_VERSION__.length > 0) {

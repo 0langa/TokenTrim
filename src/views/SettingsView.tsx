@@ -110,8 +110,13 @@ export function SettingsView({
             hint="When set, the pipeline stretches or squashes compression to hit a specific token count. Leave empty to disable."
           >
             <input
+              type="number"
+              min={1}
               value={targetTokens}
-              onChange={(e) => setTargetTokens(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === '' || /^\d+$/.test(v)) setTargetTokens(v);
+              }}
               placeholder="e.g. 4000"
               className="px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs w-28 placeholder:text-slate-400"
             />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParallelCompression } from '../hooks/useParallelCompression';
 import type { TokenizerKind } from '../compression/types';
 
@@ -13,20 +13,16 @@ interface Props {
 export function CompareView({ tokenizer }: Props) {
   const [input, setInput] = useState('');
   const { results, processing, run } = useParallelCompression();
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
     if (!input.trim()) {
       run('', { tokenizer, mode: 'normal' });
       return;
     }
-    timerRef.current = setTimeout(() => {
+    const id = setTimeout(() => {
       run(input, { tokenizer, mode: 'normal' });
     }, 300);
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
+    return () => clearTimeout(id);
   }, [input, tokenizer, run]);
 
   return (

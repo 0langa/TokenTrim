@@ -28,6 +28,7 @@ declare module '@mlc-ai/web-llm' {
   export interface ChatCompletion {
     choices: Array<{
       message: { content: string | null };
+      finish_reason: string | null;
     }>;
   }
 

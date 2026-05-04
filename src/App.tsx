@@ -10,7 +10,13 @@ import type { AppView } from './components/layout/TopBar';
 import type { TokenizerKind } from './compression/types';
 import { decodeState } from './lib/shareableUrl';
 
-const URL_STATE = typeof window !== 'undefined' ? decodeState(window.location.search) : null;
+const URL_STATE = (() => {
+  try {
+    return typeof window !== 'undefined' ? decodeState(window.location.search) : null;
+  } catch {
+    return null;
+  }
+})();
 
 export default function App() {
   const [view, setView] = useState<AppView>('compress');

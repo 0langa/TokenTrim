@@ -82,7 +82,7 @@ export function protectSpans(text: string, activeTypes: ProtectedSpanType[]): Pr
     out = out.replace(pattern, (content) => {
       let placeholder = createPlaceholder(seed, spans.length);
       let salt = 0;
-      while (text.includes(placeholder) || out.includes(placeholder)) {
+      while ((text.includes(placeholder) || out.includes(placeholder)) && salt < 1000) {
         salt += 1;
         placeholder = createPlaceholder(seed + salt.toString(36), spans.length);
       }

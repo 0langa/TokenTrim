@@ -17,6 +17,7 @@ import type {
   CompressionResult,
   RiskLevel,
   TokenizerKind,
+  ProtectedSpanStats,
 } from '../compression/types';
 import type { Preset } from '../compression/presets';
 import type { ExportFormat } from '../components/ResultTabs';
@@ -141,27 +142,51 @@ export function CompressView({
       SUPPORTED.has(file.name.split('.').pop()?.toLowerCase() ?? ''),
     );
     if (picked.length === 1) {
-      setInput(await picked[0].text());
-      setBatchRows([]);
+      try {
+        setInput(await picked[0].text());
+        setBatchRows([]);
+      } catch {
+        /* ignore unreadable file */
+      }
       return;
     }
     const rows: BatchRow[] = [];
     for (const file of picked) {
-      const text = await file.text();
-      const out = compress(text, {
-        mode, tokenizer, profile,
-        targetTokens: targetTokens ? Number(targetTokens) : undefined,
-        maxRisk, allowUnsafeTransforms,
-        ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}),
-      });
-      rows.push({
-        filename: file.name,
-        result: out,
-        ratio: out.metrics.originalChars > 0
-          ? (out.metrics.outputChars / out.metrics.originalChars).toFixed(3)
-          : '1.000',
-        status: out.error ? 'failed' : 'ok',
-      });
+      try {
+        const text = await file.text();
+        const out = compress(text, {
+          mode, tokenizer, profile,
+          targetTokens: targetTokens ? Number(targetTokens) : undefined,
+          maxRisk, allowUnsafeTransforms,
+          ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}),
+        });
+        rows.push({
+          filename: file.name,
+          result: out,
+          ratio: out.metrics.originalChars > 0
+            ? (out.metrics.outputChars / out.metrics.originalChars).toFixed(3)
+            : '1.000',
+          status: out.error ? 'failed' : 'ok',
+        });
+      } catch {
+        rows.push({
+          filename: file.name,
+          result: {
+            output: '', mode, profile,
+            metrics: {
+              originalChars: 0, outputChars: 0, charSavings: 0,
+              originalWords: 0, outputWords: 0,
+              estimatedTokensBefore: 0, estimatedTokensAfter: 0,
+              estimatedTokenSavings: 0, tokenizerUsed: tokenizer, tokenizerExact: false,
+            },
+            report: { transformStats: [], removedPhrases: [], replacedPhrases: [], abbreviationHits: 0, operatorHits: 0, protectedSpanStats: {} as ProtectedSpanStats, riskEvents: [], diffPreview: [] },
+            warnings: ['Failed to read file'],
+            safetyIssues: [], rejectedTransforms: [],
+          } as CompressionResult,
+          ratio: '1.000',
+          status: 'failed',
+        });
+      }
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
     setBatchRows(rows);
@@ -248,6 +273,7 @@ export function CompressView({
         <LargeFileWarning
           charCount={input.length}
           onCompressAnyway={() => setAckedLength(input.length)}
+          onCancel={() => setInput('')}
         />
         <ControlsPanel
           mode={mode}

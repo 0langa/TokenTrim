@@ -48,32 +48,37 @@ export function HighlightedOutput({ text, dark = true }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    getHighlighter().then((highlighter) => {
-      if (cancelled) return;
-      const theme = dark ? 'vitesse-dark' : 'vitesse-light';
-      const parts = text.split(/(```[\s\S]*?```)/g);
-      const out: string[] = [];
-      for (const part of parts) {
-        if (part.startsWith('```')) {
-          const match = part.match(/^```(\w+)?\n([\s\S]*?)```$/);
-          if (match) {
-            const lang = match[1] ?? 'text';
-            const code = match[2];
-            try {
-              const highlighted = highlighter.codeToHtml(code, { lang, theme });
-              out.push(highlighted);
-            } catch {
-              out.push(`<pre class="shiki"><code>${escapeHtml(code)}</code></pre>`);
+    getHighlighter()
+      .then((highlighter) => {
+        if (cancelled) return;
+        const theme = dark ? 'vitesse-dark' : 'vitesse-light';
+        const parts = text.split(/(```[\s\S]*?```)/g);
+        const out: string[] = [];
+        for (const part of parts) {
+          if (part.startsWith('```')) {
+            const match = part.match(/^```(\w+)?\n([\s\S]*?)```$/);
+            if (match) {
+              const lang = match[1] ?? 'text';
+              const code = match[2];
+              try {
+                const highlighted = highlighter.codeToHtml(code, { lang, theme });
+                out.push(highlighted);
+              } catch {
+                out.push(`<pre class="shiki"><code>${escapeHtml(code)}</code></pre>`);
+              }
+            } else {
+              out.push(`<pre class="shiki"><code>${escapeHtml(part)}</code></pre>`);
             }
           } else {
-            out.push(`<pre class="shiki"><code>${escapeHtml(part)}</code></pre>`);
+            out.push(`<span class="whitespace-pre-wrap">${escapeHtml(part)}</span>`);
           }
-        } else {
-          out.push(`<span class="whitespace-pre-wrap">${escapeHtml(part)}</span>`);
         }
-      }
-      setHtml(out.join(''));
-    });
+        setHtml(out.join(''));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHtml(`<span class="whitespace-pre-wrap">${escapeHtml(text)}</span>`);
+      });
     return () => { cancelled = true; };
   }, [text, dark]);
 

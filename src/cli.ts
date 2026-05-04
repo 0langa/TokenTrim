@@ -524,6 +524,8 @@ export async function runCli(argv: string[], ctx: CliContext = { stdout: process
       let totalCharsBefore = 0;
       let totalCharsAfter = 0;
       let skippedSize = 0;
+      let allOriginalText = '';
+      let allCompressedText = '';
 
       const results = await Promise.all(allFiles.map((file) => limit(async () => {
         let text: string;
@@ -551,12 +553,14 @@ export async function runCli(argv: string[], ctx: CliContext = { stdout: process
         if (!r) continue;
         totalCharsBefore += r.result.metrics.originalChars;
         totalCharsAfter += r.result.metrics.outputChars;
+        allOriginalText += r.text;
+        allCompressedText += formatResult(r.result, r.text);
         includedFiles.push(r.file);
         sections.push(`### ${r.rel}\n\`\`\`${r.ext}\n${formatResult(r.result, r.text)}\n\`\`\``);
       }
 
-      const tokenBefore = estimateTokens('x'.repeat(totalCharsBefore), repoOptions.tokenizer ?? 'approx-generic');
-      const tokenAfter = estimateTokens('x'.repeat(totalCharsAfter), repoOptions.tokenizer ?? 'approx-generic');
+      const tokenBefore = estimateTokens(allOriginalText, repoOptions.tokenizer ?? 'approx-generic');
+      const tokenAfter = estimateTokens(allCompressedText, repoOptions.tokenizer ?? 'approx-generic');
       const savingsPct = totalCharsBefore > 0 ? Math.round((1 - totalCharsAfter / totalCharsBefore) * 100) : 0;
 
       const tree = buildFileTree(includedFiles, dir);

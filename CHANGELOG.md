@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.0 - 2026-05-04
+
+### Hardening & Reliability
+
+- Fixed exact tokenizer lazy-load crash on malformed `gpt-tokenizer` module shape.
+- Fixed clipboard copy silently failing in sandboxed iframe contexts.
+- Fixed Shiki syntax highlighter crash on dynamic import failure.
+- Fixed protected spans infinite loop on placeholder collision.
+- Fixed WebLLM empty-output bug: added `max_tokens: 2048`, restored proper chat-template roles, added `finish_reason` diagnostics.
+- Fixed compression worker crash causing infinite spinner (added `onerror` handlers).
+- Fixed CLI repo command token estimation bug (was estimating placeholder text instead of actual content).
+- Fixed file upload unhandled rejection on `file.text()` or `compress()` failure.
+- Fixed theme FOUC on page load (class set before hydration).
+- Fixed `history.replaceState` crash in sandboxed iframes.
+
 ## 2.0.1 - 2026-05-02
 
 ### Web App

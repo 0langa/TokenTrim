@@ -91,11 +91,15 @@ export function getShareableUrl(state: ShareableState): string {
 }
 
 export function updateBrowserUrl(state: ShareableState): void {
-  const encoded = encodeState(state);
-  const url = encoded
-    ? `${window.location.pathname}?${encoded}`
-    : window.location.pathname;
-  window.history.replaceState(null, '', url);
+  try {
+    const encoded = encodeState(state);
+    const url = encoded
+      ? `${window.location.pathname}?${encoded}`
+      : window.location.pathname;
+    window.history.replaceState(null, '', url);
+  } catch {
+    /* ignore in sandboxed iframes */
+  }
 }
 
 export function copyToClipboard(text: string): Promise<void> {

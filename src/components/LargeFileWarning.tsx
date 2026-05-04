@@ -1,11 +1,12 @@
 interface Props {
   charCount: number;
   onCompressAnyway: () => void;
+  onCancel?: () => void;
 }
 
 const ONE_MB = 1_000_000;
 
-export function LargeFileWarning({ charCount, onCompressAnyway }: Props) {
+export function LargeFileWarning({ charCount, onCompressAnyway, onCancel }: Props) {
   if (charCount < ONE_MB) return null;
 
   const mb = (charCount / ONE_MB).toFixed(1);
@@ -26,6 +27,14 @@ export function LargeFileWarning({ charCount, onCompressAnyway }: Props) {
           several seconds and could temporarily freeze the browser tab.
         </p>
         <div className="flex gap-2">
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium rounded transition-colors"
+            >
+              Cancel
+            </button>
+          )}
           <button
             onClick={onCompressAnyway}
             className="flex-1 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded transition-colors"

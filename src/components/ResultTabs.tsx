@@ -42,7 +42,7 @@ function EmptyHowItWorks() {
         </li>
       </ol>
       <p className="text-[11px] text-slate-600 border-t border-slate-800 pt-4 max-w-xs">
-        All processing runs locally in your browser. No upload, no AI, no telemetry.
+        All processing runs locally in your browser. No upload, private, no telemetry.
       </p>
     </div>
   );

@@ -41,6 +41,12 @@ export function useParallelCompression(): UseParallelCompressionReturn {
           setProcessing(false);
         }
       };
+      workers[mode]!.onerror = () => {
+        pendingRef.current -= 1;
+        if (pendingRef.current <= 0) {
+          setProcessing(false);
+        }
+      };
     }
     return () => {
       for (const mode of MODES) {
