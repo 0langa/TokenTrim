@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import type { WebWorkerMLCEngine, InitProgressReport } from '@mlc-ai/web-llm';
 
 export type LlmModelId =
   | 'SmolLM2-360M-Instruct-q4f16_1-MLC'
@@ -16,8 +17,14 @@ interface UseWebLLMReturn {
 }
 
 const MODEL_META: Record<LlmModelId, { desc: string; size: string }> = {
-  'SmolLM2-360M-Instruct-q4f16_1-MLC': { desc: 'Fast, lightweight. Good for quick summaries.', size: '~130 MB' },
-  'Llama-3.2-1B-Instruct-q4f16_1-MLC': { desc: 'Slower but higher quality compression.', size: '~900 MB' },
+  'SmolLM2-360M-Instruct-q4f16_1-MLC': {
+    desc: 'Fast, lightweight. Good for quick summaries.',
+    size: '~130 MB',
+  },
+  'Llama-3.2-1B-Instruct-q4f16_1-MLC': {
+    desc: 'Slower but higher quality compression.',
+    size: '~900 MB',
+  },
 };
 
 export function getModelMeta(modelId: LlmModelId) {
@@ -25,83 +32,88 @@ export function getModelMeta(modelId: LlmModelId) {
 }
 
 export function useWebLLM(): UseWebLLMReturn {
+  const engineRef = useRef<WebWorkerMLCEngine | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const currentCompressPromise = useRef<Promise<unknown> | null>(null);
+
   const [engineState, setEngineState] = useState<EngineState>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const resolveRef = useRef<((value: string) => void) | null>(null);
-  const rejectRef = useRef<((reason: Error) => void) | null>(null);
 
-  const getWorker = useCallback(() => {
-    if (!workerRef.current) {
+  const initEngine = useCallback(async (modelId: LlmModelId) => {
+    setError(null);
+    setProgress(0);
+    setEngineState('downloading');
+
+    try {
+      // Terminate any existing worker/engine
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
+      engineRef.current = null;
+
       const worker = new Worker(
         new URL('../workers/webllm.worker.ts', import.meta.url),
         { type: 'module' },
       );
-      worker.onmessage = (e: MessageEvent) => {
-        const data = e.data;
-        if (data.type === 'progress') {
-          setProgress(data.progress ?? 0);
-        } else if (data.type === 'ready') {
-          setEngineState('ready');
-          setProgress(1);
-        } else if (data.type === 'result') {
-          setEngineState('ready');
-          resolveRef.current?.(data.output ?? '');
-          resolveRef.current = null;
-          rejectRef.current = null;
-        } else if (data.type === 'error') {
-          setEngineState('error');
-          setError(data.message ?? 'Unknown error');
-          rejectRef.current?.(new Error(data.message ?? 'Unknown error'));
-          resolveRef.current = null;
-          rejectRef.current = null;
-        }
-      };
-      worker.onerror = (err) => {
-        setEngineState('error');
-        setError(err.message ?? 'Worker error');
-        rejectRef.current?.(new Error(err.message ?? 'Worker error'));
-        resolveRef.current = null;
-        rejectRef.current = null;
-      };
       workerRef.current = worker;
+
+      const { CreateWebWorkerMLCEngine } = await import('@mlc-ai/web-llm');
+      const engine = await CreateWebWorkerMLCEngine(worker, modelId, {
+        initProgressCallback: (p: InitProgressReport) => {
+          setProgress(p.progress ?? 0);
+        },
+      });
+
+      engineRef.current = engine;
+      setEngineState('ready');
+      setProgress(1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      setEngineState('error');
     }
-    return workerRef.current;
   }, []);
 
-  const initEngine = useCallback((modelId: LlmModelId) => {
-    setError(null);
-    setProgress(0);
-    setEngineState('downloading');
-    const worker = getWorker();
-    worker.postMessage({ type: 'init', modelId });
-  }, [getWorker]);
-
-  const compress = useCallback((text: string, systemPrompt: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      if (engineState !== 'ready') {
-        reject(new Error('Engine not ready'));
-        return;
+  const compress = useCallback(
+    async (text: string, systemPrompt: string): Promise<string> => {
+      const engine = engineRef.current;
+      if (!engine) {
+        throw new Error('Engine not initialized');
       }
-      resolveRef.current = resolve;
-      rejectRef.current = reject;
+
       setEngineState('compressing');
-      const worker = getWorker();
-      worker.postMessage({ type: 'compress', text, style: systemPrompt });
-    });
-  }, [engineState, getWorker]);
+      try {
+        const promise = engine.chat.completions.create({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: text },
+          ],
+          temperature: 0.2,
+          max_tokens: Math.max(256, Math.round(text.length / 3)),
+          stream: false,
+        });
+        currentCompressPromise.current = promise;
+        const reply = await promise;
+        currentCompressPromise.current = null;
+
+        const content = reply.choices[0]?.message?.content ?? '';
+        setEngineState('ready');
+        return content;
+      } catch (err) {
+        setEngineState('ready');
+        throw err;
+      }
+    },
+    [],
+  );
 
   const abort = useCallback(() => {
-    const worker = workerRef.current;
-    if (worker) {
-      worker.postMessage({ type: 'abort' });
+    const engine = engineRef.current;
+    if (engine && 'interruptGenerate' in engine) {
+      (engine as WebWorkerMLCEngine).interruptGenerate();
     }
-    if (resolveRef.current) {
-      rejectRef.current?.(new Error('Aborted'));
-      resolveRef.current = null;
-      rejectRef.current = null;
-    }
+
     if (engineState === 'compressing') {
       setEngineState('ready');
     }
