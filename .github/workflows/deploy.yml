@@ -29,6 +29,7 @@ jobs:
       - run: npm run build:lib
       - run: npm run build:cli
       - run: npm run test
+      - run: npx tsx scripts/check-regression.mjs
       - run: npm run build:pages
       - run: test -f dist/index.html && test -f dist/404.html
       - uses: actions/upload-pages-artifact@v3

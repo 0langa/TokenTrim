@@ -3,6 +3,9 @@ import type { CompressionResult } from '../compression/types';
 interface Props {
   result: CompressionResult | null;
   processing: boolean;
+  onSaveToHistory?: () => void;
+  onToggleHistory?: () => void;
+  historyOpen?: boolean;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -14,7 +17,24 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function MetricsBar({ result, processing }: Props) {
+function ClockIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function BookmarkIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+export function MetricsBar({ result, processing, onSaveToHistory, onToggleHistory, historyOpen }: Props) {
   if (!result && !processing) return null;
 
   const savingsPct = result && result.metrics.estimatedTokensBefore > 0
@@ -52,6 +72,26 @@ export function MetricsBar({ result, processing }: Props) {
           >
             {result.metrics.tokenizerExact ? 'exact' : 'est.'} ({result.metrics.tokenizerUsed})
           </span>
+          <div className="ml-auto flex items-center gap-1">
+            {onSaveToHistory && (
+              <button
+                onClick={onSaveToHistory}
+                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
+                title="Save to history"
+              >
+                <BookmarkIcon /> Save
+              </button>
+            )}
+            {onToggleHistory && (
+              <button
+                onClick={onToggleHistory}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors ${historyOpen ? 'text-slate-200 bg-slate-700' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'}`}
+                title="Toggle history"
+              >
+                <ClockIcon /> History
+              </button>
+            )}
+          </div>
         </>
       ) : null}
     </div>

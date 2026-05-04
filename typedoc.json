@@ -1,0 +1,11 @@
+{
+  "entryPoints": ["src/compression/index.ts"],
+  "out": "docs/api",
+  "name": "TokenTrim API",
+  "includeVersion": true,
+  "readme": "none",
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "sortEntryPoints": false,
+  "plugin": []
+}

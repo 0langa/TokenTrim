@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 import { compress } from './compression/pipeline';
 import { optimizeToBudget } from './compression/budgetOptimizer';
 import { createCompressionReport } from './compression/reporting';
@@ -12,8 +14,12 @@ import { TOKENTRIM_VERSION } from './version';
 import type { CompressionMode, CompressionOptions, CompressionProfile, RiskLevel, TokenizerKind } from './compression/types';
 import { loadConfig, STARTER_CONFIG, type CliConfig } from './cli/config';
 import { loadIgnorePatterns, walkFilesWithIgnore } from './cli/ignorePatterns';
+import { generateCompletionScript } from './cli/completions';
+import { createUnifiedDiff } from './cli/diff';
+import { MultiBar, SingleBar } from 'cli-progress';
+import pLimit from 'p-limit';
 
-type CliFormat = 'json' | 'text';
+type CliFormat = 'json' | 'text' | 'diff';
 
 type CliContext = {
   stdout: NodeJS.WriteStream;
@@ -23,7 +29,7 @@ type CliContext = {
 const VALID_MODES: CompressionMode[] = ['light', 'normal', 'heavy', 'ultra', 'custom'];
 const VALID_TOKENIZERS: TokenizerKind[] = ['approx-generic', 'openai-cl100k', 'openai-o200k'];
 const VALID_RISKS: RiskLevel[] = ['safe', 'low', 'medium', 'high'];
-const VALID_FORMATS: CliFormat[] = ['json', 'text'];
+const VALID_FORMATS: CliFormat[] = ['json', 'text', 'diff'];
 const VALID_PROFILES: CompressionProfile[] = listProfiles();
 const VALID_TRANSFORMS = new Set(getAllTransformIds());
 
@@ -167,6 +173,7 @@ function printHelp(ctx: CliContext): void {
   ctx.stdout.write('  tokentrim batch <dir> [options]          Batch compress a directory\n');
   ctx.stdout.write('  tokentrim report <file> [options]        Generate compression report\n');
   ctx.stdout.write('  tokentrim stdin [options]                Compress stdin\n');
+  ctx.stdout.write('  tokentrim diff [--staged] [options]      Compress git diff output\n');
   ctx.stdout.write('  tokentrim repo <path> [options]          Generate local context pack\n');
   ctx.stdout.write('  tokentrim watch <path> [options]         Watch file or directory for changes\n');
   ctx.stdout.write('  tokentrim init                           Create starter .tokentrimrc.json\n');
@@ -174,6 +181,7 @@ function printHelp(ctx: CliContext): void {
   ctx.stdout.write('  tokentrim list-profiles [--format json]  List available profiles\n');
   ctx.stdout.write('  tokentrim list-tokenizers                List tokenizer kinds\n');
   ctx.stdout.write('  tokentrim list-modes                     List compression modes\n');
+  ctx.stdout.write('  tokentrim completions <bash|zsh|fish>    Generate shell completion script\n');
   ctx.stdout.write('\nOptions:\n');
   ctx.stdout.write('  --mode light|normal|heavy|ultra|custom\n');
   ctx.stdout.write('  --profile general|agent-context|repo-context|logs|markdown-docs|chat-history\n');
@@ -185,13 +193,13 @@ function printHelp(ctx: CliContext): void {
   ctx.stdout.write('  --report           Write .report.json alongside --out (batch/repo)\n');
   ctx.stdout.write('  --recursive        Recurse into subdirectories (batch)\n');
   ctx.stdout.write('  --dry-run          Simulate without writing files\n');
-  ctx.stdout.write('  --format json|text Output format (report/list commands)\n');
+  ctx.stdout.write('  --format json|text|diff Output format (report/compress/stdin/repo/batch)\n');
   ctx.stdout.write(`\nProfiles: ${VALID_PROFILES.join(', ')}\n`);
   ctx.stdout.write('\nConfig: .tokentrimrc | .tokentrimrc.json | tokentrim.config.json\n');
   ctx.stdout.write('Ignore:  .tokentrimignore (gitignore-style, for batch --recursive and repo)\n');
 }
 
-export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdout, stderr: process.stderr }): number {
+export async function runCli(argv: string[], ctx: CliContext = { stdout: process.stdout, stderr: process.stderr }): Promise<number> {
   try {
     const { positional, flags } = parseArgs(argv);
     const cmd = positional[0];
@@ -300,6 +308,15 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
       return 0;
     }
 
+    if (cmd === 'completions') {
+      const shell = positional[1];
+      if (!shell || !['bash', 'zsh', 'fish'].includes(shell)) {
+        fail('Usage: tokentrim completions <bash|zsh|fish>');
+      }
+      ctx.stdout.write(generateCompletionScript(shell as 'bash' | 'zsh' | 'fish'));
+      return 0;
+    }
+
     if (cmd === 'watch') {
       fail('watch must be run directly (not via API). Use `tokentrim watch <path>`.');
     }
@@ -312,11 +329,47 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
     const reportPath = typeof flags.get('--report') === 'string' ? (flags.get('--report') as string) : undefined;
     const dryRun = flags.has('--dry-run');
 
+    // --- Git diff ---
+
+    if (cmd === 'diff') {
+      const staged = flags.has('--staged');
+      const gitArgs = staged ? ['diff', '--staged'] : ['diff'];
+      let diffText: string;
+      try {
+        diffText = execSync(`git ${gitArgs.join(' ')}`, { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 });
+      } catch {
+        fail('Not a git repository or git is not installed');
+      }
+      if (!diffText.trim()) {
+        ctx.stdout.write('(no diff)\n');
+        return 0;
+      }
+      const result = runCompression(diffText, { mode: options.mode ?? 'normal', profile: options.profile ?? 'general', tokenizer: options.tokenizer ?? 'approx-generic', maxRisk: options.maxRisk ?? 'medium' });
+      const payload = formatResult(result, diffText);
+      if (!dryRun) {
+        if (outFile) fs.writeFileSync(outFile, payload, 'utf8');
+        else ctx.stdout.write(payload);
+      }
+      return result.error ? 2 : 0;
+    }
+
+    const outputFormat = readEnum(
+      (flags.get('--format') as string | undefined) ?? (cmd === 'report' ? 'json' : 'text'),
+      VALID_FORMATS,
+      '--format',
+    );
+
+    function formatResult(result: ReturnType<typeof runCompression>, original: string): string {
+      if (outputFormat === 'diff') return createUnifiedDiff(original, result.output);
+      if (outputFormat === 'json') return JSON.stringify(createCompressionReport(result), null, 2);
+      return result.output;
+    }
+
     if (cmd === 'stdin') {
       const input = fs.readFileSync(0, 'utf8');
       const result = runCompression(input, options);
       if (!dryRun) {
-        ctx.stdout.write(result.output);
+        ctx.stdout.write(formatResult(result, input));
         if (reportPath) fs.writeFileSync(reportPath, JSON.stringify(createCompressionReport(result), null, 2), 'utf8');
       }
       return result.error ? 2 : 0;
@@ -328,8 +381,9 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
       const text = fs.readFileSync(file, 'utf8');
       const result = runCompression(text, options);
       if (!dryRun) {
-        if (outFile) fs.writeFileSync(outFile, result.output, 'utf8');
-        else ctx.stdout.write(result.output);
+        const payload = formatResult(result, text);
+        if (outFile) fs.writeFileSync(outFile, payload, 'utf8');
+        else ctx.stdout.write(payload);
         if (reportPath) fs.writeFileSync(reportPath, JSON.stringify(createCompressionReport(result), null, 2), 'utf8');
       }
       return result.error ? 2 : 0;
@@ -338,10 +392,9 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
     if (cmd === 'report') {
       const file = positional[1];
       if (!file) fail('Missing input file');
-      const format = readEnum((flags.get('--format') as string | undefined) ?? 'json', VALID_FORMATS, '--format');
       const text = fs.readFileSync(file, 'utf8');
       const result = runCompression(text, options);
-      const payload = format === 'json' ? JSON.stringify(createCompressionReport(result), null, 2) : result.output;
+      const payload = formatResult(result, text);
       if (!dryRun) {
         if (outFile) fs.writeFileSync(outFile, payload, 'utf8');
         else ctx.stdout.write(payload);
@@ -366,31 +419,54 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
         files = walkFiles(dir, false);
       }
 
-      ctx.stdout.write(`Processing ${files.length} files${skippedCount > 0 ? `, ${skippedCount} skipped` : ''}...\n`);
+      const useProgress = !flags.has('--no-progress') && files.length > 1 && !outFile && !!ctx.stdout.isTTY;
+      let multibar: MultiBar | undefined;
+      let bar: SingleBar | undefined;
+      if (useProgress) {
+        multibar = new MultiBar({
+          format: '{bar} {percentage}% | {value}/{total} | {filename}',
+          barCompleteChar: '\u2588',
+          barIncompleteChar: '\u2591',
+          hideCursor: true,
+          clearOnComplete: true,
+          stopOnComplete: true,
+        });
+        bar = multibar.create(files.length, 0, { filename: 'starting...' });
+      } else {
+        ctx.stdout.write(`Processing ${files.length} files${skippedCount > 0 ? `, ${skippedCount} skipped` : ''}...\n`);
+      }
 
-      for (const file of files) {
+      const limit = pLimit(Math.min(8, Math.max(2, os.cpus().length)));
+
+      await Promise.all(files.map((file) => limit(async () => {
         let text: string;
         try {
           text = fs.readFileSync(file, 'utf8');
         } catch {
-          ctx.stdout.write(`${path.relative(dir, file)}\t-\t-\tfailed (unreadable)\n`);
-          continue;
+          if (!useProgress) ctx.stdout.write(`${path.relative(dir, file)}\t-\t-\tfailed (unreadable)\n`);
+          return;
         }
         const result = runCompression(text, options);
         const rel = path.relative(dir, file);
-        ctx.stdout.write(`${rel}\t${result.metrics.originalChars}\t${result.metrics.outputChars}\t${result.error ? 'failed' : 'ok'}\n`);
+        if (!useProgress) {
+          ctx.stdout.write(`${rel}\t${result.metrics.originalChars}\t${result.metrics.outputChars}\t${result.error ? 'failed' : 'ok'}\n`);
+        }
+        if (bar) bar.increment({ filename: rel });
 
         if (outFile && !dryRun) {
-          const target = path.join(outFile, `${rel}.trim.txt`);
+          const ext = outputFormat === 'diff' ? '.diff' : outputFormat === 'json' ? '.json' : '.trim.txt';
+          const target = path.join(outFile, `${rel}${ext}`);
           fs.mkdirSync(path.dirname(target), { recursive: true });
-          fs.writeFileSync(target, result.output, 'utf8');
+          fs.writeFileSync(target, formatResult(result, text), 'utf8');
           if (writeReport) {
             const rpt = path.join(outFile, `${rel}.report.json`);
             fs.mkdirSync(path.dirname(rpt), { recursive: true });
             fs.writeFileSync(rpt, JSON.stringify(createCompressionReport(result), null, 2), 'utf8');
           }
         }
-      }
+      })));
+
+      if (multibar) multibar.stop();
       return 0;
     }
 
@@ -426,33 +502,57 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
         return a.localeCompare(b);
       });
 
+      const useProgress = !flags.has('--no-progress') && allFiles.length > 1 && !outFile && !!ctx.stdout.isTTY;
+      let multibar: MultiBar | undefined;
+      let bar: SingleBar | undefined;
+      if (useProgress) {
+        multibar = new MultiBar({
+          format: '{bar} {percentage}% | {value}/{total} files | {filename}',
+          barCompleteChar: '\u2588',
+          barIncompleteChar: '\u2591',
+          hideCursor: true,
+          clearOnComplete: true,
+          stopOnComplete: true,
+        });
+        bar = multibar.create(allFiles.length, 0, { filename: 'starting...' });
+      }
+
+      const limit = pLimit(Math.min(8, Math.max(2, os.cpus().length)));
+
       const sections: string[] = [];
       const includedFiles: string[] = [];
       let totalCharsBefore = 0;
       let totalCharsAfter = 0;
       let skippedSize = 0;
 
-      for (const file of allFiles) {
+      const results = await Promise.all(allFiles.map((file) => limit(async () => {
         let text: string;
         try {
           text = fs.readFileSync(file, 'utf8');
         } catch {
-          continue;
+          return null;
         }
         if (text.length > REPO_MAX_FILE_CHARS) {
           skippedSize += 1;
-          continue;
+          return null;
         }
 
         const result = runCompression(text, repoOptions);
         const rel = path.relative(dir, file).replace(/\\/g, '/');
         const ext = path.extname(file).slice(1) || 'txt';
 
-        totalCharsBefore += result.metrics.originalChars;
-        totalCharsAfter += result.metrics.outputChars;
-        includedFiles.push(file);
+        if (bar) bar.increment({ filename: rel });
+        return { file, rel, ext, result, text };
+      })));
 
-        sections.push(`### ${rel}\n\`\`\`${ext}\n${result.output}\n\`\`\``);
+      if (multibar) multibar.stop();
+
+      for (const r of results) {
+        if (!r) continue;
+        totalCharsBefore += r.result.metrics.originalChars;
+        totalCharsAfter += r.result.metrics.outputChars;
+        includedFiles.push(r.file);
+        sections.push(`### ${r.rel}\n\`\`\`${r.ext}\n${formatResult(r.result, r.text)}\n\`\`\``);
       }
 
       const tokenBefore = estimateTokens('x'.repeat(totalCharsBefore), repoOptions.tokenizer ?? 'approx-generic');
@@ -552,6 +652,8 @@ if (isMain) {
   if (args[0] === 'watch') {
     runWatch(args.slice(1)).catch((e) => { process.stderr.write(`Error: ${e.message}\n`); process.exit(1); });
   } else {
-    process.exit(runCli(args));
+    (async () => {
+      process.exit(await runCli(args));
+    })();
   }
 }

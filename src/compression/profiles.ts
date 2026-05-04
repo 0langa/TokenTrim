@@ -37,6 +37,21 @@ export const PROFILE_META: Record<CompressionProfile, ProfileMeta> = {
     description: 'Removes low-value conversational filler and deduplicates repeated points. Preserves decisions, action items, and factual content.',
     inputType: 'Chat transcripts, meeting notes, conversation logs',
   },
+  csv: {
+    label: 'CSV / TSV',
+    description: 'Collapses repeated rows, normalizes whitespace around delimiters, and removes blank lines in tabular data.',
+    inputType: 'CSV files, TSV files, tabular data exports',
+  },
+  jsonl: {
+    label: 'JSONL / NDJSON',
+    description: 'Minifies each JSON line independently and removes trailing commas. Preserves all keys and values.',
+    inputType: 'JSON Lines, NDJSON streams, log files',
+  },
+  xml: {
+    label: 'XML / HTML',
+    description: 'Removes comments, collapses whitespace in attributes, normalizes entities, and strips empty lines between tags.',
+    inputType: 'XML files, HTML files, SVG markup',
+  },
 };
 
 export const PROFILE_TRANSFORM_ORDER: Record<CompressionProfile, string[]> = {
@@ -128,6 +143,9 @@ export const PROFILE_TRANSFORM_ORDER: Record<CompressionProfile, string[]> = {
     'deduplication',
     'abbreviation',
   ],
+  csv: ['csv-cleanup', 'deduplication'],
+  jsonl: ['jsonl-minify', 'deduplication'],
+  xml: ['xml-cleanup', 'deduplication'],
 };
 
 export function listProfiles(): CompressionProfile[] {

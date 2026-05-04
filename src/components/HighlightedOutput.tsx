@@ -1,31 +1,37 @@
 import { useEffect, useState } from 'react';
 import type { HighlighterCore } from 'shiki';
-import { createHighlighterCore } from 'shiki/core';
-import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
-import js from 'shiki/langs/javascript.mjs';
-import ts from 'shiki/langs/typescript.mjs';
-import json from 'shiki/langs/json.mjs';
-import yaml from 'shiki/langs/yaml.mjs';
-import markdown from 'shiki/langs/markdown.mjs';
-import python from 'shiki/langs/python.mjs';
-import bash from 'shiki/langs/bash.mjs';
-import css from 'shiki/langs/css.mjs';
-import html from 'shiki/langs/html.mjs';
-import rust from 'shiki/langs/rust.mjs';
-import go from 'shiki/langs/go.mjs';
-import java from 'shiki/langs/java.mjs';
-import xml from 'shiki/langs/xml.mjs';
-import vitesseDark from 'shiki/themes/vitesse-dark.mjs';
-import vitesseLight from 'shiki/themes/vitesse-light.mjs';
-
 
 let highlighterPromise: Promise<HighlighterCore> | null = null;
 
-function getHighlighter() {
+async function getHighlighter() {
   if (!highlighterPromise) {
+    const [{ createHighlighterCore }, { createJavaScriptRegexEngine }, js, ts, json, yaml, markdown, python, bash, css, html, rust, go, java, xml, vitesseDark, vitesseLight] = await Promise.all([
+      import('shiki/core'),
+      import('shiki/engine/javascript'),
+      import('shiki/langs/javascript.mjs'),
+      import('shiki/langs/typescript.mjs'),
+      import('shiki/langs/json.mjs'),
+      import('shiki/langs/yaml.mjs'),
+      import('shiki/langs/markdown.mjs'),
+      import('shiki/langs/python.mjs'),
+      import('shiki/langs/bash.mjs'),
+      import('shiki/langs/css.mjs'),
+      import('shiki/langs/html.mjs'),
+      import('shiki/langs/rust.mjs'),
+      import('shiki/langs/go.mjs'),
+      import('shiki/langs/java.mjs'),
+      import('shiki/langs/xml.mjs'),
+      import('shiki/themes/vitesse-dark.mjs'),
+      import('shiki/themes/vitesse-light.mjs'),
+    ]);
     highlighterPromise = createHighlighterCore({
-      themes: [vitesseDark, vitesseLight],
-      langs: [js, ts, json, yaml, markdown, python, bash, css, html, rust, go, java, xml],
+      themes: [vitesseDark.default ?? vitesseDark, vitesseLight.default ?? vitesseLight],
+      langs: [
+        js.default ?? js, ts.default ?? ts, json.default ?? json, yaml.default ?? yaml,
+        markdown.default ?? markdown, python.default ?? python, bash.default ?? bash,
+        css.default ?? css, html.default ?? html, rust.default ?? rust, go.default ?? go,
+        java.default ?? java, xml.default ?? xml,
+      ],
       engine: createJavaScriptRegexEngine(),
     });
   }

@@ -5,7 +5,10 @@ export type CompressionProfile =
   | 'repo-context'
   | 'logs'
   | 'markdown-docs'
-  | 'chat-history';
+  | 'chat-history'
+  | 'csv'
+  | 'jsonl'
+  | 'xml';
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high';
 

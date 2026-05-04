@@ -1,0 +1,19 @@
+{
+  "agent-context.md": {
+    "normal": { "charSavingsMin": 0.05, "charSavingsMax": 0.10, "durationMaxMs": 200 },
+    "heavy": { "charSavingsMin": 0.15, "charSavingsMax": 0.30, "durationMaxMs": 200 }
+  },
+  "markdown-doc.md": {
+    "normal": { "charSavingsMin": 0.01, "charSavingsMax": 0.05, "durationMaxMs": 200 },
+    "heavy": { "charSavingsMin": 0.05, "charSavingsMax": 0.12, "durationMaxMs": 200 }
+  },
+  "build-log.txt": {
+    "heavy": { "charSavingsMin": 0.35, "charSavingsMax": 0.50, "durationMaxMs": 200 }
+  },
+  "chat-history.md": {
+    "heavy": { "charSavingsMin": 0.05, "charSavingsMax": 0.20, "durationMaxMs": 200 }
+  },
+  "repo-context.md": {
+    "heavy": { "charSavingsMin": 0.02, "charSavingsMax": 0.10, "durationMaxMs": 200 }
+  }
+}

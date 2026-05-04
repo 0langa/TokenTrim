@@ -44,6 +44,16 @@ function ColumnsIcon() {
   );
 }
 
+function SparkleIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5z" />
+      <path d="M5 16l1 2.5L8.5 20l-2.5 1L5 23.5l-1-2.5L1.5 20l2.5-1z" />
+      <path d="M19 16l1 2.5L23.5 20l-2.5 1L19 23.5l-1-2.5L15.5 20l2.5-1z" />
+    </svg>
+  );
+}
+
 function ChevronLeftIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -64,6 +74,7 @@ type NavItem = { id: AppView; label: string; icon: ReactElement };
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'compress', label: 'Compress', icon: <ScissorsIcon /> },
+  { id: 'llm-compress', label: 'LLM Compress', icon: <SparkleIcon /> },
   { id: 'compare', label: 'Compare', icon: <ColumnsIcon /> },
   { id: 'settings', label: 'Settings', icon: <GearIcon /> },
   { id: 'reference', label: 'Reference', icon: <BookIcon /> },

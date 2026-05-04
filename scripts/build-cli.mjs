@@ -15,6 +15,7 @@ await build({
   format: 'esm',
   outfile: 'dist/cli.js',
   define,
+  external: ['cli-progress', 'p-limit', 'chokidar'],
 });
 
 // Bundle compression library for scripts (benchmark etc.)

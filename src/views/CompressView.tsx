@@ -1,10 +1,14 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import { useCompression } from '../hooks/useCompression';
 import { useCustomTransforms } from '../hooks/useCustomTransforms';
+import { useCompressionHistory } from '../hooks/useCompressionHistory';
+import { decodeState, updateBrowserUrl } from '../lib/shareableUrl';
 import { MetricsBar } from '../components/MetricsBar';
 import { ResultTabs } from '../components/ResultTabs';
 import { ControlsPanel } from '../components/workspace/ControlsPanel';
 import { InputPanel } from '../components/workspace/InputPanel';
+import { HistoryPanel } from '../components/workspace/HistoryPanel';
+import { LargeFileWarning } from '../components/LargeFileWarning';
 import { compress } from '../compression/pipeline';
 import { createCompressionReport } from '../compression/reporting';
 import type {
@@ -20,6 +24,8 @@ import { TOKENTRIM_VERSION } from '../version';
 
 const INPUT_KEY = 'tokentrim:last-input';
 const MODE_KEY = 'tokentrim:last-mode';
+
+const URL_STATE = typeof window !== 'undefined' ? decodeState(window.location.search) : null;
 
 const SUPPORTED = new Set([
   'txt', 'md', 'json', 'yaml', 'yml', 'toml',
@@ -79,29 +85,48 @@ export function CompressView({
   setAllowUnsafeTransforms,
   onResetAppSettings,
 }: Props) {
-  const [input, setInput] = useState(() => localStorage.getItem(INPUT_KEY) ?? '');
+  const [input, setInput] = useState(() => URL_STATE?.input ?? localStorage.getItem(INPUT_KEY) ?? '');
   const [mode, setMode] = useState<CompressionMode>(
-    () => (localStorage.getItem(MODE_KEY) as CompressionMode) ?? 'normal',
+    () => URL_STATE?.mode ?? (localStorage.getItem(MODE_KEY) as CompressionMode) ?? 'normal',
   );
-  const [profile, setProfile] = useState<CompressionProfile>('general');
-  const [maxRisk, setMaxRisk] = useState<RiskLevel>('medium');
+  const [profile, setProfile] = useState<CompressionProfile>(URL_STATE?.profile ?? 'general');
+  const [maxRisk, setMaxRisk] = useState<RiskLevel>(URL_STATE?.maxRisk ?? 'medium');
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchExportFormat, setBatchExportFormat] = useState<ExportFormat>('txt');
+  const [ackedLength, setAckedLength] = useState(0);
   const [customTransforms, toggleCustomTransform] = useCustomTransforms();
   const { result, processing, run } = useCompression();
+  const { history, open: historyOpen, setOpen: setHistoryOpen, addEntry, removeEntry, clearHistory } = useCompressionHistory();
 
   useEffect(() => { localStorage.setItem(INPUT_KEY, input); }, [input]);
   useEffect(() => { localStorage.setItem(MODE_KEY, mode); }, [mode]);
 
   useEffect(() => {
+    updateBrowserUrl({
+      mode,
+      profile,
+      maxRisk,
+      input,
+      tokenizer,
+      targetTokens: targetTokens ? String(targetTokens) : undefined,
+      allowUnsafeTransforms,
+      customTransforms: mode === 'custom' ? customTransforms : undefined,
+    });
+  }, [mode, profile, maxRisk, input, tokenizer, targetTokens, allowUnsafeTransforms, customTransforms]);
+
+  const isLargeFile = input.length >= 1_000_000;
+  const largeFileAcknowledged = ackedLength >= input.length;
+
+  useEffect(() => {
+    if (isLargeFile && !largeFileAcknowledged) return;
     run(input, {
       mode, tokenizer, profile,
       targetTokens: targetTokens ? Number(targetTokens) : undefined,
       maxRisk, allowUnsafeTransforms,
       ...(mode === 'custom' ? { enabledTransforms: customTransforms } : {}),
     });
-  }, [input, mode, customTransforms, run, profile, tokenizer, targetTokens, maxRisk, allowUnsafeTransforms]);
+  }, [input, mode, customTransforms, run, profile, tokenizer, targetTokens, maxRisk, allowUnsafeTransforms, isLargeFile, largeFileAcknowledged]);
 
   function handlePresetSelect(preset: Preset) {
     setProfile(preset.profile);
@@ -157,6 +182,20 @@ export function CompressView({
     setMaxRisk('medium');
     setBatchRows([]);
     onResetAppSettings();
+    updateBrowserUrl({});
+  }
+
+  function handleSaveToHistory() {
+    if (!result) return;
+    addEntry(input, result, mode, profile, maxRisk);
+  }
+
+  function handleRestoreHistory(entry: import('../hooks/useCompressionHistory').HistoryEntry) {
+    setInput(entry.input);
+    setMode(entry.mode);
+    setProfile(entry.profile);
+    setMaxRisk(entry.maxRisk);
+    setSelectedPreset(null);
   }
 
   function handleDownloadOutput(format: ExportFormat) {
@@ -193,13 +232,23 @@ export function CompressView({
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <MetricsBar result={result} processing={processing} />
+      <MetricsBar
+        result={result}
+        processing={processing}
+        onSaveToHistory={handleSaveToHistory}
+        onToggleHistory={() => setHistoryOpen((v) => !v)}
+        historyOpen={historyOpen}
+      />
 
       <div
-        className="flex flex-1 overflow-hidden"
+        className="flex flex-1 overflow-hidden relative"
         onDrop={(e) => void onDrop(e)}
         onDragOver={(e) => e.preventDefault()}
       >
+        <LargeFileWarning
+          charCount={input.length}
+          onCompressAnyway={() => setAckedLength(input.length)}
+        />
         <ControlsPanel
           mode={mode}
           setMode={setMode}
@@ -228,6 +277,16 @@ export function CompressView({
           onDownloadOutput={handleDownloadOutput}
           onDownloadReport={handleDownloadReport}
         />
+
+        {historyOpen && (
+          <HistoryPanel
+            history={history}
+            onRestore={handleRestoreHistory}
+            onRemove={removeEntry}
+            onClear={clearHistory}
+            onClose={() => setHistoryOpen(false)}
+          />
+        )}
       </div>
 
       {batchRows.length > 0 && (

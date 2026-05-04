@@ -18,6 +18,9 @@ import { repeatedWordTransform } from './transforms/repeatedWordTransform';
 import { numberRangeTransform } from './transforms/numberRangeTransform';
 import { timeDurationTransform } from './transforms/timeDurationTransform';
 import { pleonasmTransform } from './transforms/pleonasmTransform';
+import { csvTransform } from './transforms/csvTransform';
+import { jsonlTransform } from './transforms/jsonlTransform';
+import { xmlTransform } from './transforms/xmlTransform';
 
 function cavemanCompactionTransform(input: string, mode: CompressionMode) {
   let out = input;
@@ -91,7 +94,7 @@ function cavemanCompactionTransform(input: string, mode: CompressionMode) {
   return { output: out, stat: { transformId: 'caveman-compaction', replacements, charsSaved, risk, examples } };
 }
 
-const applyProfiles: CompressionProfile[] = ['general', 'agent-context', 'repo-context', 'logs', 'markdown-docs', 'chat-history'];
+const applyProfiles: CompressionProfile[] = ['general', 'agent-context', 'repo-context', 'logs', 'markdown-docs', 'chat-history', 'csv', 'jsonl', 'xml'];
 
 export const TRANSFORM_REGISTRY: TokenTrimTransform[] = [
   { id: 'markdown-cleanup', label: 'Markdown Cleanup', description: 'Normalize markdown whitespace safely', risk: 'safe', defaultModes: ['light', 'normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => markdownCompressionTransform(input) },
@@ -113,6 +116,9 @@ export const TRANSFORM_REGISTRY: TokenTrimTransform[] = [
   { id: 'deduplication', label: 'Deduplication', description: 'Remove repeated paragraphs', risk: 'medium', defaultModes: ['heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => deduplicationTransform(input) },
   { id: 'section-salience', label: 'Section Salience', description: 'Drop low-value blocks', risk: 'medium', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: ['agent-context', 'repo-context', 'chat-history', 'markdown-docs'], profileOnly: true, apply: (input, ctx) => sectionSalienceTransform(input, ctx.mode === 'heavy' || ctx.mode === 'ultra') },
   { id: 'log-compression', label: 'Log Compression', description: 'Collapse repeated log lines', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: ['logs'], profileOnly: true, apply: (input) => logCompressionTransform(input) },
+  { id: 'csv-cleanup', label: 'CSV Cleanup', description: 'Collapse repeated cells and normalize CSV whitespace', risk: 'safe', defaultModes: ['light', 'normal', 'heavy', 'ultra', 'custom'], profiles: ['csv'], profileOnly: true, apply: (input) => csvTransform(input) },
+  { id: 'jsonl-minify', label: 'JSONL Minify', description: 'Minify JSON lines and remove trailing commas', risk: 'safe', defaultModes: ['light', 'normal', 'heavy', 'ultra', 'custom'], profiles: ['jsonl'], profileOnly: true, apply: (input) => jsonlTransform(input) },
+  { id: 'xml-cleanup', label: 'XML Cleanup', description: 'Remove comments, collapse attributes, normalize entities', risk: 'safe', defaultModes: ['light', 'normal', 'heavy', 'ultra', 'custom'], profiles: ['xml'], profileOnly: true, apply: (input) => xmlTransform(input) },
 ];
 
 export function getAllTransformIds(): string[] {

@@ -149,24 +149,24 @@ describe('CLI integration (runCli direct)', () => {
     };
   }
 
-  it('prints help', () => {
+  it('prints help', async () => {
     const c = capture();
-    const code = runCli(['help'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['help'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(0);
     expect(c.out).toContain('Commands:');
   });
 
-  it('validates stdin command without hanging (no actual stdin)', () => {
+  it('validates stdin command without hanging (no actual stdin)', async () => {
     // Direct import tests cannot easily provide stdin; this is covered by the subprocess suite.
     const c = capture();
-    const code = runCli(['help'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['help'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(0);
     expect(c.out).toContain('stdin');
   });
 
-  it('lists transforms as JSON', () => {
+  it('lists transforms as JSON', async () => {
     const c = capture();
-    const code = runCli(['list-transforms', '--format', 'json'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['list-transforms', '--format', 'json'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(0);
     const data = JSON.parse(c.out);
     expect(Array.isArray(data)).toBe(true);
@@ -174,43 +174,43 @@ describe('CLI integration (runCli direct)', () => {
     expect(data[0]).toHaveProperty('id');
   });
 
-  it('lists profiles as JSON', () => {
+  it('lists profiles as JSON', async () => {
     const c = capture();
-    const code = runCli(['list-profiles', '--format', 'json'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['list-profiles', '--format', 'json'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(0);
     const data = JSON.parse(c.out);
     expect(Array.isArray(data)).toBe(true);
     expect(data.some((p: { id: string }) => p.id === 'general')).toBe(true);
   });
 
-  it('rejects unknown command', () => {
+  it('rejects unknown command', async () => {
     const c = capture();
-    const code = runCli(['nope'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['nope'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(1);
     expect(c.err).toContain('Unknown command');
   });
 
-  it('rejects invalid mode', () => {
+  it('rejects invalid mode', async () => {
     const c = capture();
-    const code = runCli(['stdin', '--mode', 'impossible'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['stdin', '--mode', 'impossible'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(1);
     expect(c.err).toContain('Invalid');
   });
 
-  it('rejects invalid enabled-transforms', () => {
+  it('rejects invalid enabled-transforms', async () => {
     const c = capture();
-    const code = runCli(['stdin', '--enabled-transforms', 'fake-transform'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['stdin', '--enabled-transforms', 'fake-transform'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(1);
     expect(c.err).toContain('Unknown transform');
   });
 
-  it('init creates starter config', () => {
+  it('init creates starter config', async () => {
     const dir = tmpDir();
     const originalCwd = process.cwd();
     process.chdir(dir);
     try {
       const c = capture();
-      const code = runCli(['init'], { stdout: c.stdout, stderr: c.stderr });
+      const code = await runCli(['init'], { stdout: c.stdout, stderr: c.stderr });
       expect(code).toBe(0);
       expect(c.out).toContain('Created');
       expect(fs.existsSync(path.join(dir, '.tokentrimrc.json'))).toBe(true);
@@ -219,14 +219,14 @@ describe('CLI integration (runCli direct)', () => {
     }
   });
 
-  it('init refuses to overwrite', () => {
+  it('init refuses to overwrite', async () => {
     const dir = tmpDir();
     fs.writeFileSync(path.join(dir, '.tokentrimrc.json'), '{}', 'utf8');
     const originalCwd = process.cwd();
     process.chdir(dir);
     try {
       const c = capture();
-      const code = runCli(['init'], { stdout: c.stdout, stderr: c.stderr });
+      const code = await runCli(['init'], { stdout: c.stdout, stderr: c.stderr });
       expect(code).toBe(1);
       expect(c.err).toContain('already exists');
     } finally {
@@ -234,25 +234,25 @@ describe('CLI integration (runCli direct)', () => {
     }
   });
 
-  it('compress writes to --out', () => {
+  it('compress writes to --out', async () => {
     const dir = tmpDir();
     const input = path.join(dir, 'input.md');
     const output = path.join(dir, 'output.md');
     fs.writeFileSync(input, '# Hello\n\nWorld\n', 'utf8');
     const c = capture();
-    const code = runCli(['compress', input, '--out', output, '--mode', 'light'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['compress', input, '--out', output, '--mode', 'light'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(0);
     expect(fs.existsSync(output)).toBe(true);
     expect(fs.readFileSync(output, 'utf8').length).toBeGreaterThan(0);
   });
 
-  it('report writes JSON to --out', () => {
+  it('report writes JSON to --out', async () => {
     const dir = tmpDir();
     const input = path.join(dir, 'input.md');
     const output = path.join(dir, 'report.json');
     fs.writeFileSync(input, '# Test\n', 'utf8');
     const c = capture();
-    const code = runCli(['report', input, '--out', output, '--mode', 'light'], { stdout: c.stdout, stderr: c.stderr });
+    const code = await runCli(['report', input, '--out', output, '--mode', 'light'], { stdout: c.stdout, stderr: c.stderr });
     expect(code).toBe(0);
     const report = JSON.parse(fs.readFileSync(output, 'utf8'));
     expect(report).toHaveProperty('version');
