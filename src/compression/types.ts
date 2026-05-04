@@ -140,6 +140,15 @@ export type CompressionRequest = {
   options: CompressionOptions;
 };
 
+export type CompressionWorkerRequest = CompressionRequest & {
+  requestId: number;
+};
+
+export type CompressionWorkerResponse = {
+  requestId: number;
+  result: CompressionResult;
+};
+
 export type CompressionModeMeta = {
   id: CompressionMode;
   label: 'Light' | 'Normal' | 'Heavy' | 'Ultra' | 'Custom';

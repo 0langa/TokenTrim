@@ -22,26 +22,26 @@ interface Props {
 function EmptyHowItWorks() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-8 py-14 text-center gap-4">
-      <div className="text-slate-300 font-semibold text-base">How it works</div>
-      <ol className="text-xs text-slate-400 space-y-2.5 text-left max-w-xs">
+      <div className="text-base font-semibold text-slate-700 dark:text-slate-200">How it works</div>
+      <ol className="max-w-xs space-y-2.5 text-left text-xs text-slate-500 dark:text-slate-400">
         <li className="flex gap-2.5">
           <span className="text-violet-400 font-bold shrink-0">1</span>
-          <span>Choose what you're compressing — pick a preset above</span>
+          <span>Pick the text type if needed, or leave it on the default</span>
         </li>
         <li className="flex gap-2.5">
           <span className="text-violet-400 font-bold shrink-0">2</span>
-          <span>Paste text on the left or drag and drop files</span>
+          <span>Paste text on the left or drag files into the workspace</span>
         </li>
         <li className="flex gap-2.5">
           <span className="text-violet-400 font-bold shrink-0">3</span>
-          <span>Review output, diff, safety checks, and transform details here</span>
+          <span>Choose how strong the cleanup should be</span>
         </li>
         <li className="flex gap-2.5">
           <span className="text-violet-400 font-bold shrink-0">4</span>
-          <span>Copy or download the compressed result</span>
+          <span>Review the output, changes, and safety notes here</span>
         </li>
       </ol>
-      <p className="text-[11px] text-slate-600 border-t border-slate-800 pt-4 max-w-xs">
+      <p className="max-w-xs border-t border-slate-200 pt-4 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
         All processing runs locally in your browser. No upload, private, no telemetry.
       </p>
     </div>
@@ -50,7 +50,7 @@ function EmptyHowItWorks() {
 
 function TabEmptyState({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-center flex-1 text-slate-500 text-sm px-6 py-12">
+    <div className="flex flex-1 items-center justify-center px-6 py-12 text-sm text-slate-500 dark:text-slate-400">
       {children}
     </div>
   );
@@ -66,9 +66,9 @@ function getSafetyDotClass(result: CompressionResult): string {
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'output', label: 'Output' },
-  { id: 'diff', label: 'Diff' },
+  { id: 'diff', label: 'Changes' },
   { id: 'safety', label: 'Safety' },
-  { id: 'transforms', label: 'Transforms' },
+  { id: 'transforms', label: 'Details' },
   { id: 'report', label: 'Report' },
 ];
 
@@ -76,6 +76,7 @@ export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }
   const [activeTab, setActiveTab] = useState<Tab>('output');
   const [exportFormat, setExportFormat] = useState<ExportFormat>('txt');
   const [diffLayout, setDiffLayout] = useState<'inline' | 'side'>('inline');
+  const darkTheme = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
   const diffChunks = useMemo(() => {
     if (activeTab !== 'diff' || !result || !input) return null;
@@ -86,9 +87,9 @@ export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }
   const hasResult = result !== null;
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden border-l border-slate-700">
+    <div className="flex min-h-[18rem] flex-1 flex-col overflow-hidden border-t xl:border-t-0 xl:border-l border-slate-200 dark:border-slate-700">
       {/* Tab bar */}
-      <div className="flex border-b border-slate-700 bg-slate-900 shrink-0 items-stretch">
+      <div className="flex shrink-0 items-stretch border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         {TABS.map((tab) => {
           const active = activeTab === tab.id;
           const disabled = !hasResult && tab.id !== 'output';
@@ -99,8 +100,8 @@ export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }
               disabled={disabled}
               className={`px-4 py-2 text-xs font-medium transition-colors flex items-center gap-1.5 border-b-2 disabled:opacity-30 disabled:cursor-not-allowed ${
                 active
-                  ? 'border-violet-400 text-slate-100'
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
+                  ? 'border-violet-500 text-slate-900 dark:border-violet-400 dark:text-slate-100'
+                  : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               {tab.label}
@@ -130,10 +131,10 @@ export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }
         {/* Output */}
         {activeTab === 'output' &&
           (hasResult ? (
-            <div className="p-4 text-sm font-mono flex-1 overflow-auto">
-              <HighlightedOutput text={result!.output} />
+            <div className="flex-1 overflow-auto bg-white p-4 text-sm font-mono dark:bg-slate-900">
+              <HighlightedOutput text={result!.output} dark={darkTheme} />
               {result!.warnings.length > 0 && (
-                <div className="mt-4 text-amber-400 text-xs font-sans">
+                <div className="mt-4 text-xs font-sans text-amber-600 dark:text-amber-400">
                   {result!.warnings.join(' | ')}
                 </div>
               )}
@@ -141,20 +142,20 @@ export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }
                 <select
                   value={exportFormat}
                   onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-                  className="text-xs px-2 py-1 bg-slate-700 rounded text-slate-200"
+                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                 >
                   <option value="txt">.txt</option>
                   <option value="md">.md</option>
                   <option value="json">.json</option>
                 </select>
                 <button
-                  className="text-xs px-3 py-1.5 bg-slate-700 rounded hover:bg-slate-600 transition-colors text-slate-200"
+                  className="rounded bg-slate-900 px-3 py-1.5 text-xs text-white transition-colors hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
                   onClick={() => onDownloadOutput(exportFormat)}
                 >
                   Download output
                 </button>
                 <button
-                  className="text-xs px-3 py-1.5 bg-slate-700 rounded hover:bg-slate-600 transition-colors text-slate-200"
+                  className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   onClick={onDownloadReport}
                   title="Full JSON with safety issues, rejected transforms, token metrics, and timing"
                 >
@@ -170,16 +171,24 @@ export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }
         {activeTab === 'diff' &&
           (diffChunks ? (
             <div className="flex flex-col h-full">
-              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-700 bg-slate-900 shrink-0">
+              <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-slate-700 dark:bg-slate-900">
                 <button
                   onClick={() => setDiffLayout('inline')}
-                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${diffLayout === 'inline' ? 'bg-slate-700 text-slate-200' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`rounded px-2 py-0.5 text-[11px] transition-colors ${
+                    diffLayout === 'inline'
+                      ? 'bg-slate-900 text-white dark:bg-slate-700'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
                 >
                   Inline
                 </button>
                 <button
                   onClick={() => setDiffLayout('side')}
-                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${diffLayout === 'side' ? 'bg-slate-700 text-slate-200' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`rounded px-2 py-0.5 text-[11px] transition-colors ${
+                    diffLayout === 'side'
+                      ? 'bg-slate-900 text-white dark:bg-slate-700'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
                 >
                   Side-by-side
                 </button>

@@ -83,15 +83,28 @@ const NAV_ITEMS: NavItem[] = [
 interface Props {
   view: AppView;
   onViewChange: (v: AppView) => void;
+  onViewPreload: (v: AppView) => void;
 }
 
-export function Sidebar({ view, onViewChange }: Props) {
+function readCollapsedState(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function Sidebar({ view, onViewChange, onViewPreload }: Props) {
   const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(COLLAPSED_KEY) === 'true',
+    readCollapsedState,
   );
 
   useEffect(() => {
-    localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+    try {
+      localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+    } catch {
+      /* ignore private-mode and storage failures */
+    }
   }, [collapsed]);
 
   return (
@@ -105,6 +118,9 @@ export function Sidebar({ view, onViewChange }: Props) {
             <button
               key={id}
               onClick={() => onViewChange(id)}
+              onMouseEnter={() => onViewPreload(id)}
+              onFocus={() => onViewPreload(id)}
+              onTouchStart={() => onViewPreload(id)}
               title={collapsed ? label : undefined}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors relative ${
                 active

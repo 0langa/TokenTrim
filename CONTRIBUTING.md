@@ -9,7 +9,15 @@ npm install
 npm run dev      # Vite dev server
 npm test         # Vitest watch mode
 npm run build    # Full build (types + vite + lib + cli)
+npm run build:pages # Static GitHub Pages artifact
 ```
+
+## Deployment Model
+
+- Production host is GitHub Pages only.
+- Keep changes static-safe: no backend assumptions, no server routes, no SSR-only logic.
+- If you touch asset paths, `homepage`, routing behavior, or entry loading, verify `npm run build:pages`.
+- Required Pages artifacts: `dist/index.html`, `dist/404.html`, `dist/.nojekyll`.
 
 ## Project Structure
 

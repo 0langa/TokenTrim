@@ -16,19 +16,19 @@ export function SideBySideDiff({ chunks }: Props) {
 
   for (const chunk of chunks) {
     if (chunk.op === 'equal') {
-      left.push({ text: chunk.text, className: 'text-slate-300' });
-      right.push({ text: chunk.text, className: 'text-slate-300' });
+      left.push({ text: chunk.text, className: 'text-slate-600 dark:text-slate-300' });
+      right.push({ text: chunk.text, className: 'text-slate-600 dark:text-slate-300' });
     } else if (chunk.op === 'delete') {
-      left.push({ text: chunk.text, className: 'text-red-400 line-through bg-red-950/30' });
+      left.push({ text: chunk.text, className: 'bg-red-100 text-red-700 line-through dark:bg-red-950/30 dark:text-red-400' });
     } else if (chunk.op === 'insert') {
-      right.push({ text: chunk.text, className: 'text-green-400 bg-green-950/30' });
+      right.push({ text: chunk.text, className: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' });
     }
   }
 
   return (
     <div className="flex h-full overflow-hidden text-sm font-mono">
-      <div className="flex-1 overflow-auto p-4 border-r border-slate-700">
-        <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Original</div>
+      <div className="flex-1 overflow-auto border-r border-slate-200 p-4 dark:border-slate-700">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Original</div>
         <div className="whitespace-pre-wrap">
           {left.map((item, i) => (
             <span key={i} className={item.className}>{item.text}</span>
@@ -36,7 +36,7 @@ export function SideBySideDiff({ chunks }: Props) {
         </div>
       </div>
       <div className="flex-1 overflow-auto p-4">
-        <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Compressed</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Compressed</div>
         <div className="whitespace-pre-wrap">
           {right.map((item, i) => (
             <span key={i} className={item.className}>{item.text}</span>

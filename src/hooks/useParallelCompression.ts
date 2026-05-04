@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CompressionOptions, CompressionResult } from '../compression/types';
+import type {
+  CompressionOptions,
+  CompressionResult,
+  CompressionWorkerRequest,
+  CompressionWorkerResponse,
+} from '../compression/types';
 
 type CompareMode = 'light' | 'normal' | 'heavy' | 'ultra';
 
@@ -26,6 +31,7 @@ export function useParallelCompression(): UseParallelCompressionReturn {
     ultra: null,
   });
   const pendingRef = useRef(0);
+  const latestRequestIdRef = useRef(0);
 
   useEffect(() => {
     const workers = workersRef.current;
@@ -34,8 +40,11 @@ export function useParallelCompression(): UseParallelCompressionReturn {
         new URL('../workers/compression.worker.ts', import.meta.url),
         { type: 'module' },
       );
-      workers[mode]!.onmessage = (e: MessageEvent<CompressionResult>) => {
-        setResults((prev) => ({ ...prev, [mode]: e.data }));
+      workers[mode]!.onmessage = (e: MessageEvent<CompressionWorkerResponse>) => {
+        if (e.data.requestId !== latestRequestIdRef.current) {
+          return;
+        }
+        setResults((prev) => ({ ...prev, [mode]: e.data.result }));
         pendingRef.current -= 1;
         if (pendingRef.current <= 0) {
           setProcessing(false);
@@ -57,17 +66,23 @@ export function useParallelCompression(): UseParallelCompressionReturn {
 
   const run = useCallback((text: string, baseOptions: CompressionOptions) => {
     if (!text.trim()) {
+      latestRequestIdRef.current += 1;
+      pendingRef.current = 0;
       setResults({ light: null, normal: null, heavy: null, ultra: null });
       setProcessing(false);
       return;
     }
+    const requestId = latestRequestIdRef.current + 1;
+    latestRequestIdRef.current = requestId;
     setProcessing(true);
     pendingRef.current = MODES.length;
     for (const mode of MODES) {
-      workersRef.current[mode]?.postMessage({
+      const request: CompressionWorkerRequest = {
+        requestId,
         text,
         options: { ...baseOptions, mode },
-      });
+      };
+      workersRef.current[mode]?.postMessage(request);
     }
   }, []);
 

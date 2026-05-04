@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { MODES } from '../compression/modes';
-import { PRESETS } from '../compression/presets';
 import { PROFILE_META, PROFILE_TRANSFORM_ORDER } from '../compression/profiles';
 import { TRANSFORM_REGISTRY } from '../compression/transformRegistry';
 import type { RiskLevel } from '../compression/types';
 
-type Section = 'presets' | 'modes' | 'profiles' | 'risk' | 'transforms';
+type Section = 'modes' | 'profiles' | 'risk' | 'transforms';
 
 const RISK_COLORS: Record<RiskLevel, { badge: string; dot: string }> = {
   safe:   { badge: 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900', dot: 'bg-green-500' },
@@ -63,7 +62,6 @@ const TRANSFORM_EXAMPLES: Record<string, { before: string; after: string }> = {
 };
 
 const TABS: Array<{ id: Section; label: string }> = [
-  { id: 'presets', label: 'Presets' },
   { id: 'modes', label: 'Modes' },
   { id: 'profiles', label: 'Use Cases' },
   { id: 'risk', label: 'Risk Levels' },
@@ -83,35 +81,6 @@ function CodeSpan({ children }: { children: React.ReactNode }) {
     <code className="text-[11px] font-mono bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-slate-600 dark:text-slate-400">
       {children}
     </code>
-  );
-}
-
-function PresetsSection() {
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-slate-600 dark:text-slate-400">
-        Presets are one-click bundles that set the compression mode, use case profile, and risk level together. Pick the one that matches your input type.
-      </p>
-      <div className="grid gap-3 md:grid-cols-2">
-        {PRESETS.map((p) => (
-          <Card key={p.id}>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{p.label}</h3>
-              <RiskBadge risk={p.maxRisk} />
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 leading-relaxed">{p.description}</p>
-            <div className="flex flex-wrap gap-2 text-[11px]">
-              <span className="px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300">
-                Mode: {p.mode}
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
-                Profile: {PROFILE_META[p.profile].label}
-              </span>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -284,7 +253,7 @@ function TransformsSection() {
 }
 
 export function ReferenceView() {
-  const [section, setSection] = useState<Section>('presets');
+  const [section, setSection] = useState<Section>('modes');
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900">
@@ -308,7 +277,6 @@ export function ReferenceView() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-6">
-          {section === 'presets' && <PresetsSection />}
           {section === 'modes' && <ModesSection />}
           {section === 'profiles' && <ProfilesSection />}
           {section === 'risk' && <RiskSection />}

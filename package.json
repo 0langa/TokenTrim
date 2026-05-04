@@ -1,7 +1,7 @@
 {
   "name": "tokentrim",
   "version": "2.1.0",
-  "description": "Compress AI context locally — deterministic transforms, protected spans, semantic safety validation. No upload. No AI. No telemetry.",
+  "description": "Compress AI context locally — deterministic transforms plus optional in-browser WebLLM. No text upload. No telemetry.",
   "type": "module",
   "license": "MIT",
   "author": "0langa",
@@ -58,7 +58,7 @@
     "build:lib": "node scripts/build-lib.mjs && npm run build:types",
     "build:cli": "node scripts/build-cli.mjs",
     "build:types": "tsc -p tsconfig.lib.json",
-    "build:pages": "npm run build && node --input-type=commonjs --eval \"require('fs').copyFileSync('dist/index.html','dist/404.html')\"",
+    "build:pages": "npm run build && node scripts/build-pages.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

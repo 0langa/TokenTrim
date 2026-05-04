@@ -5,29 +5,22 @@ import { estimateTokens } from '../compression/tokenizers/index';
 
 const DEFAULT_PROMPT = 'Compress the following text for an LLM context window. Preserve all facts, requirements, numbers, negations, and technical terms. Remove fluff, redundancy, and filler. Output ONLY the compressed text with no explanations.';
 
-const PRESETS = [
-  { id: 'summarize', label: 'Summarize', prompt: 'Summarize the following text concisely while preserving all key facts, numbers, requirements, and negations. Output ONLY the summary with no explanations.' },
-  { id: 'bullets', label: 'Bullet Points', prompt: 'Convert the following text into dense bullet points. Preserve all facts, numbers, requirements, and negations. Output ONLY the bullet points with no explanations.' },
-  { id: 'rewrite', label: 'Rewrite Concisely', prompt: 'Rewrite the following text more concisely. Preserve all facts, numbers, requirements, and negations. Remove filler and redundancy. Output ONLY the rewritten text with no explanations.' },
-  { id: 'custom', label: 'Custom Prompt', prompt: '' },
-];
-
 function hasWebGPU(): boolean {
   return typeof navigator !== 'undefined' && 'gpu' in navigator;
 }
 
 export function LlmCompressView() {
-  const { engineState, progress, error, initEngine, compress, abort } = useWebLLM();
+  const { engineState, progress, error, loadedModelId, initEngine, compress, abort } = useWebLLM();
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [modelId, setModelId] = useState<LlmModelId>('SmolLM2-360M-Instruct-q4f16_1-MLC');
-  const [preset, setPreset] = useState('summarize');
+  const [showCustomPrompt, setShowCustomPrompt] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [metrics, setMetrics] = useState<{ originalTokens: number; outputTokens: number; savings: number } | null>(null);
 
-  const systemPrompt = preset === 'custom' && customPrompt.trim()
-    ? customPrompt
-    : PRESETS.find((p) => p.id === preset)?.prompt ?? DEFAULT_PROMPT;
+  const systemPrompt = customPrompt.trim()
+    ? `${DEFAULT_PROMPT}\n\nAdditional instruction: ${customPrompt.trim()}`
+    : DEFAULT_PROMPT;
 
   const handleCompress = useCallback(async () => {
     if (!input.trim()) return;
@@ -54,6 +47,7 @@ export function LlmCompressView() {
 
   const webgpuSupported = hasWebGPU();
   const meta = getModelMeta(modelId);
+  const needsModelLoad = loadedModelId !== modelId;
 
   if (!webgpuSupported) {
     return (
@@ -90,7 +84,11 @@ export function LlmCompressView() {
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Model</label>
             <select
               value={modelId}
-              onChange={(e) => setModelId(e.target.value as LlmModelId)}
+              onChange={(e) => {
+                setModelId(e.target.value as LlmModelId);
+                setOutput('');
+                setMetrics(null);
+              }}
               disabled={isBusy}
               className="w-full text-xs px-2.5 py-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 disabled:opacity-50"
             >
@@ -98,40 +96,43 @@ export function LlmCompressView() {
               <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Llama 3.2 1B (~900 MB)</option>
             </select>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{meta.desc}</p>
+            {loadedModelId && (
+              <p className="text-[10px] mt-1 text-slate-500 dark:text-slate-400">
+                Loaded: {loadedModelId === modelId ? 'selected model ready' : 'different model loaded'}
+              </p>
+            )}
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Style</label>
-            <div className="flex flex-wrap gap-1.5">
-              {PRESETS.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setPreset(p.id)}
-                  disabled={isBusy}
-                  className={`text-[11px] px-2.5 py-1.5 rounded transition-colors disabled:opacity-50 ${
-                    preset === p.id
-                      ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 font-medium'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {preset === 'custom' && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Custom Prompt</label>
-              <textarea
-                value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="Enter your custom system prompt..."
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Output style</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  Default mode keeps facts and strips filler. Add one extra instruction only if needed.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCustomPrompt((value) => !value)}
                 disabled={isBusy}
-                className="w-full h-24 text-xs px-2.5 py-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 resize-none disabled:opacity-50"
-              />
+                className="shrink-0 rounded-full border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-[10px] font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                {showCustomPrompt ? 'Hide' : 'Customize'}
+              </button>
             </div>
-          )}
+            {showCustomPrompt && (
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Extra instruction</label>
+                <textarea
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  placeholder="Example: keep bullet points, keep headings, or prioritize action items."
+                  disabled={isBusy}
+                  className="w-full h-24 text-xs px-2.5 py-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 resize-none disabled:opacity-50"
+                />
+              </div>
+            )}
+          </div>
 
           <div className="mt-auto">
             {engineState === 'idle' && (
@@ -157,7 +158,16 @@ export function LlmCompressView() {
               </div>
             )}
 
-            {engineState === 'ready' && (
+            {engineState === 'ready' && needsModelLoad && (
+              <button
+                onClick={() => initEngine(modelId)}
+                className="w-full px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded transition-colors"
+              >
+                {loadedModelId ? 'Switch Model' : 'Load Model'}
+              </button>
+            )}
+
+            {engineState === 'ready' && !needsModelLoad && (
               <button
                 onClick={handleCompress}
                 disabled={!input.trim()}
@@ -239,7 +249,9 @@ export function LlmCompressView() {
               <div className="h-full flex items-center justify-center">
                 <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
                   {engineState === 'ready'
-                    ? 'Click "Compress with LLM" to generate'
+                    ? needsModelLoad
+                      ? 'Load selected model to generate'
+                      : 'Click "Compress with LLM" to generate'
                     : engineState === 'idle'
                       ? 'Load a model to get started'
                       : ''}

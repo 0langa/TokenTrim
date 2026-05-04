@@ -6,50 +6,59 @@ export type ProfileMeta = {
   inputType: string;
 };
 
+export const COMMON_WEB_PROFILES: CompressionProfile[] = [
+  'general',
+  'agent-context',
+  'repo-context',
+  'logs',
+  'markdown-docs',
+  'chat-history',
+];
+
 export const PROFILE_META: Record<CompressionProfile, ProfileMeta> = {
   general: {
-    label: 'General Text',
-    description: 'All-purpose compression for mixed content. Applies prose rewriting, filler removal, numeric normalization, and structural cleanup.',
-    inputType: 'Emails, documents, plain prose, any mixed text',
+    label: 'General text',
+    description: 'Best default for everyday writing. Keeps wording clear while trimming filler and repetition.',
+    inputType: 'Emails, notes, plain text, mixed content',
   },
   'agent-context': {
-    label: 'Prompt / Agent Context',
-    description: 'Optimized for AI prompts and instructions. Preserves negations, requirements, and semantic precision while removing structural noise.',
-    inputType: 'AI system prompts, agent instructions, task context',
+    label: 'Prompt or instructions',
+    description: 'For prompts, rules, and task instructions. Extra careful with requirements, negations, and exact wording.',
+    inputType: 'Prompts, instructions, task briefs',
   },
   'repo-context': {
-    label: 'Repo Context',
-    description: 'Compresses source files and documentation for packing into agent context windows. Preserves code structure, removes markdown boilerplate.',
-    inputType: 'Source code files, README files, codebases',
+    label: 'Code or project files',
+    description: 'For code, READMEs, and repo context. Keeps structure and technical detail while cutting noise.',
+    inputType: 'Code files, READMEs, project context',
   },
   logs: {
-    label: 'Logs / Error Output',
-    description: 'Collapses repeated log lines into counts, preserves unique errors and stack traces, normalizes numeric values.',
-    inputType: 'Application logs, error output, terminal output',
+    label: 'Logs or errors',
+    description: 'For logs and terminal output. Groups repeated lines and keeps unique failures visible.',
+    inputType: 'Logs, stack traces, terminal output',
   },
   'markdown-docs': {
-    label: 'Markdown Docs',
-    description: 'Cleans and normalizes markdown while preserving headings, code blocks, and document structure. Removes redundant content sections.',
-    inputType: 'Markdown files, documentation, wiki pages',
+    label: 'Docs or markdown',
+    description: 'For markdown docs. Keeps headings, lists, and code blocks while trimming repeated sections.',
+    inputType: 'Markdown docs, guides, wiki pages',
   },
   'chat-history': {
-    label: 'Chat / Meeting Notes',
-    description: 'Removes low-value conversational filler and deduplicates repeated points. Preserves decisions, action items, and factual content.',
-    inputType: 'Chat transcripts, meeting notes, conversation logs',
+    label: 'Chat or notes',
+    description: 'For chat history and meeting notes. Removes filler but keeps decisions, actions, and facts.',
+    inputType: 'Chat transcripts, meeting notes, conversations',
   },
   csv: {
-    label: 'CSV / TSV',
-    description: 'Collapses repeated rows, normalizes whitespace around delimiters, and removes blank lines in tabular data.',
+    label: 'CSV or TSV',
+    description: 'For table exports. Cleans spacing and repeated rows without rewriting values.',
     inputType: 'CSV files, TSV files, tabular data exports',
   },
   jsonl: {
-    label: 'JSONL / NDJSON',
-    description: 'Minifies each JSON line independently and removes trailing commas. Preserves all keys and values.',
+    label: 'JSONL or NDJSON',
+    description: 'For line-delimited JSON. Structural cleanup only; values stay unchanged.',
     inputType: 'JSON Lines, NDJSON streams, log files',
   },
   xml: {
-    label: 'XML / HTML',
-    description: 'Removes comments, collapses whitespace in attributes, normalizes entities, and strips empty lines between tags.',
+    label: 'XML or HTML',
+    description: 'For markup files. Preserves tags while removing comments and extra whitespace.',
     inputType: 'XML files, HTML files, SVG markup',
   },
 };

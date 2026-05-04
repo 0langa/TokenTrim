@@ -24,7 +24,7 @@ export function LargeFileWarning({ charCount, onCompressAnyway, onCancel }: Prop
         </div>
         <p className="text-xs text-slate-300 mb-4">
           This input is <strong>{mb} MB</strong> ({charCount.toLocaleString()} chars). Compression may take
-          several seconds and could temporarily freeze the browser tab.
+          several seconds and use more browser memory than usual.
         </p>
         <div className="flex gap-2">
           {onCancel && (

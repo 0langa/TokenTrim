@@ -1,4 +1,5 @@
 import type { CompressionResult } from '../compression/types';
+import { getModeMeta } from '../compression/modes';
 
 interface Props {
   result: CompressionResult | null;
@@ -11,8 +12,8 @@ interface Props {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="text-xs text-slate-400 uppercase tracking-wider">{label}</span>
-      <span className="text-sm font-mono font-semibold text-slate-100">{value}</span>
+      <span className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="text-sm font-mono font-semibold text-slate-900 dark:text-slate-100">{value}</span>
     </div>
   );
 }
@@ -40,24 +41,25 @@ export function MetricsBar({ result, processing, onSaveToHistory, onToggleHistor
   const savingsPct = result && result.metrics.estimatedTokensBefore > 0
     ? Math.round((result.metrics.estimatedTokenSavings / result.metrics.estimatedTokensBefore) * 100)
     : 0;
+  const modeLabel = result ? getModeMeta(result.mode).label : '';
 
   return (
-    <div className="flex flex-wrap justify-center items-center gap-6 px-4 py-3 bg-slate-800 border-t border-slate-700">
+    <div className="flex flex-wrap items-center gap-4 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
       {processing ? (
-        <span className="text-sm text-slate-400 animate-pulse">Compressing…</span>
+        <span className="text-sm animate-pulse text-slate-500 dark:text-slate-400">Compressing…</span>
       ) : result ? (
         <>
           {result.metrics.estimatedTokenSavings > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-violet-900/50 border border-violet-700">
-              <span className="text-violet-300 font-bold text-sm">
+            <div className="flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 dark:border-violet-800 dark:bg-violet-950/40">
+              <span className="text-sm font-bold text-violet-700 dark:text-violet-300">
                 −{result.metrics.estimatedTokenSavings.toLocaleString()} tokens
               </span>
-              <span className="text-violet-400 text-xs">({savingsPct}% saved)</span>
+              <span className="text-xs text-violet-500 dark:text-violet-400">({savingsPct}% saved)</span>
             </div>
           )}
-          <Metric label="Mode" value={result.mode.toUpperCase()} />
-          <Metric label="Orig chars" value={result.metrics.originalChars.toLocaleString()} />
-          <Metric label="Out chars" value={result.metrics.outputChars.toLocaleString()} />
+          <Metric label="Mode" value={modeLabel} />
+          <Metric label="Input chars" value={result.metrics.originalChars.toLocaleString()} />
+          <Metric label="Output chars" value={result.metrics.outputChars.toLocaleString()} />
           <Metric
             label={result.metrics.tokenizerExact ? 'Tokens before' : '~Tokens before'}
             value={result.metrics.estimatedTokensBefore.toLocaleString()}
@@ -67,7 +69,7 @@ export function MetricsBar({ result, processing, onSaveToHistory, onToggleHistor
             value={result.metrics.estimatedTokensAfter.toLocaleString()}
           />
           <span
-            className="text-xs self-center text-slate-500"
+            className="self-center text-xs text-slate-500 dark:text-slate-400"
             title={result.metrics.tokenizerExact ? 'Exact token count' : 'Token counts are approximate estimates — not guaranteed to match model tokenizer output'}
           >
             {result.metrics.tokenizerExact ? 'exact' : 'est.'} ({result.metrics.tokenizerUsed})
@@ -76,7 +78,7 @@ export function MetricsBar({ result, processing, onSaveToHistory, onToggleHistor
             {onSaveToHistory && (
               <button
                 onClick={onSaveToHistory}
-                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
+                className="flex items-center gap-1 rounded px-2 py-1 text-[11px] text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
                 title="Save to history"
               >
                 <BookmarkIcon /> Save
@@ -85,7 +87,11 @@ export function MetricsBar({ result, processing, onSaveToHistory, onToggleHistor
             {onToggleHistory && (
               <button
                 onClick={onToggleHistory}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors ${historyOpen ? 'text-slate-200 bg-slate-700' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'}`}
+                className={`flex items-center gap-1 rounded px-2 py-1 text-[11px] transition-colors ${
+                  historyOpen
+                    ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-200'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200'
+                }`}
                 title="Toggle history"
               >
                 <ClockIcon /> History

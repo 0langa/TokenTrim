@@ -1,4 +1,6 @@
 import type { HistoryEntry } from '../../hooks/useCompressionHistory';
+import { getModeMeta } from '../../compression/modes';
+import { PROFILE_META } from '../../compression/profiles';
 import type { CompressionMode } from '../../compression/types';
 
 interface Props {
@@ -47,7 +49,7 @@ export function HistoryPanel({ history, onRestore, onRemove, onClear, onClose }:
   const hasItems = history.length > 0;
 
   return (
-    <aside className="w-72 shrink-0 border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-hidden">
+    <aside className="w-full xl:w-72 shrink-0 border-t xl:border-t-0 xl:border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col overflow-hidden">
       <div className="h-10 shrink-0 flex items-center justify-between px-3 border-b border-slate-200 dark:border-slate-700">
         <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">History</span>
         <div className="flex items-center gap-1">
@@ -95,9 +97,9 @@ export function HistoryPanel({ history, onRestore, onRemove, onClear, onClose }:
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${MODE_COLORS[entry.mode]}`}>
-                    {entry.mode}
+                    {getModeMeta(entry.mode).label}
                   </span>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">{entry.profile}</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">{PROFILE_META[entry.profile].label}</span>
                   <span className="text-[10px] text-slate-300 dark:text-slate-600 ml-auto">{formatTime(entry.timestamp)}</span>
                   <span
                     onClick={(e) => { e.stopPropagation(); onRemove(entry.id); }}

@@ -1,11 +1,15 @@
 import { compress } from '../compression/pipeline';
-import type { CompressionRequest } from '../compression/types';
+import type { CompressionWorkerRequest, CompressionWorkerResponse } from '../compression/types';
 import { loadExactTokenizer } from '../compression/tokenizers/exactTokenizer';
 
-self.onmessage = async (e: MessageEvent<CompressionRequest>) => {
-  const { text, options } = e.data;
+self.onmessage = async (e: MessageEvent<CompressionWorkerRequest>) => {
+  const { requestId, text, options } = e.data;
   if (options.tokenizer && options.tokenizer !== 'approx-generic') {
     await loadExactTokenizer(options.tokenizer);
   }
-  self.postMessage(compress(text, options));
+  const response: CompressionWorkerResponse = {
+    requestId,
+    result: compress(text, options),
+  };
+  self.postMessage(response);
 };

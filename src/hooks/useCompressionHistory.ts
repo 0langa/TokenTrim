@@ -3,6 +3,7 @@ import type { CompressionMode, CompressionProfile, RiskLevel, CompressionResult 
 
 const HISTORY_KEY = 'tokentrim:history';
 const MAX_ENTRIES = 50;
+const MIN_RETAINED_ENTRIES = 5;
 
 export type HistoryEntry = {
   id: string;
@@ -35,9 +36,21 @@ function readHistory(): HistoryEntry[] {
 }
 
 function writeHistory(entries: HistoryEntry[]) {
+  let next = entries;
+  while (next.length >= MIN_RETAINED_ENTRIES) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      return;
+    } catch {
+      next = next.slice(0, -1);
+    }
+  }
+
   try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
-  } catch { /* ignore */ }
+    localStorage.removeItem(HISTORY_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function useCompressionHistory() {

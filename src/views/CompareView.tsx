@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParallelCompression } from '../hooks/useParallelCompression';
 import type { TokenizerKind } from '../compression/types';
+import { copyToClipboard } from '../lib/shareableUrl';
 
 type CompareMode = 'light' | 'normal' | 'heavy' | 'ultra';
 
@@ -55,7 +56,11 @@ export function CompareView({ tokenizer }: Props) {
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">{mode}</span>
                     {result && (
                       <button
-                        onClick={() => navigator.clipboard.writeText(result.output)}
+                        onClick={() => {
+                          copyToClipboard(result.output).catch(() => {
+                            window.alert('Clipboard access denied. Copy manually from the card output.');
+                          });
+                        }}
                         className="text-[11px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
                       >
                         Copy

@@ -15,7 +15,7 @@ interface Props {
 export function ModeDescription({ mode }: Props) {
   const meta = getModeMeta(mode);
   return (
-    <div className="mt-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-2.5 space-y-1.5">
+    <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 p-2.5 space-y-1.5 dark:border-slate-700 dark:bg-slate-800/60">
       <div className="flex items-center gap-2 flex-wrap">
         <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${RISK_COLORS[meta.risk]}`}>
           {meta.risk} risk
@@ -24,8 +24,8 @@ export function ModeDescription({ mode }: Props) {
           ~{meta.expectedSavingsPct[0]}–{meta.expectedSavingsPct[1]}% savings
         </span>
       </div>
-      <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-snug">{meta.description}</p>
-      <p className="text-[11px] text-slate-500 dark:text-slate-500 leading-snug italic">{meta.guidance}</p>
+      <p className="text-[11px] leading-snug text-slate-700 dark:text-slate-300">{meta.description}</p>
+      <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">{meta.guidance}</p>
     </div>
   );
 }

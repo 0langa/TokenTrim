@@ -6,11 +6,11 @@ interface Props {
 const PLACEHOLDER = `Paste text to compress…
 
 Supports prompts, logs, markdown, code, YAML, JSON, and plain text.
-Pick a preset above, or tune compression strength and options below.`;
+Pick a text type if you want, then choose how strong the cleanup should be.`;
 
 export function InputPanel({ value, onChange }: Props) {
   return (
-    <div className="flex flex-col flex-1 min-w-0 min-h-0">
+    <div className="flex flex-col flex-1 min-w-0 min-h-[18rem] xl:min-h-0 border-b xl:border-b-0 xl:border-r border-slate-200 dark:border-slate-700">
       <div className="px-3 py-1.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 shrink-0">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Input</span>
       </div>

@@ -3,19 +3,19 @@ import type { RiskLevel } from '../../compression/types';
 const RISK_META: Record<RiskLevel, { label: string; description: string }> = {
   safe: {
     label: 'Safe',
-    description: 'Structural-only changes. Whitespace normalization, JSON minification. No wording changes.',
+    description: 'Structure only. Best when exact wording must stay almost untouched.',
   },
   low: {
     label: 'Low',
-    description: 'Minor wording adjustments. Converts number words to digits, applies common abbreviations.',
+    description: 'Light wording cleanup. Good default for most careful use.',
   },
   medium: {
     label: 'Medium',
-    description: 'Moderate rewriting. Removes filler phrases, rewrites verbose expressions, drops articles. Meaning preserved, style changes.',
+    description: 'Stronger rewriting. Better savings, still meant to preserve meaning.',
   },
   high: {
     label: 'High',
-    description: 'Aggressive compression. Replaces words with symbols, drops vowels from long words, strips prepositions. Readability reduced.',
+    description: 'Maximum squeeze. Best only when you will review output manually.',
   },
 };
 

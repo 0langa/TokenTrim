@@ -1,10 +1,12 @@
-import { PresetSelector } from '../PresetSelector';
+import { useState } from 'react';
 import { IntensitySelector } from '../IntensitySelector';
 import { ProfileSelect } from '../controls/ProfileSelect';
 import { RiskSelect } from '../controls/RiskSelect';
 import { SAMPLE_INPUTS } from '../../data/samples';
+import { getModeMeta } from '../../compression/modes';
+import { PROFILE_META } from '../../compression/profiles';
 import type { CompressionMode, CompressionProfile, RiskLevel } from '../../compression/types';
-import type { Preset } from '../../compression/presets';
+import type { CompressionRecommendation } from '../../compression/recommendations';
 
 interface Props {
   mode: CompressionMode;
@@ -13,77 +15,91 @@ interface Props {
   setProfile: (v: CompressionProfile) => void;
   maxRisk: RiskLevel;
   setMaxRisk: (v: RiskLevel) => void;
-  selectedPreset: string | null;
-  onPresetSelect: (p: Preset) => void;
   allowUnsafeTransforms: boolean;
   setAllowUnsafeTransforms: (v: boolean) => void;
   customTransforms: string[];
   toggleCustomTransform: (id: string, on: boolean) => void;
+  resetCustomTransforms: () => void;
   onLoadSample: (text: string) => void;
   onUploadFiles: (files: FileList | null) => void;
   onReset: () => void;
   targetTokens?: number;
   currentTokens?: number;
+  recommendation: CompressionRecommendation | null;
+  onApplyRecommendation: () => void;
+  fileAccept: string;
 }
 
 export function ControlsPanel({
-  mode, setMode, profile, setProfile, maxRisk, setMaxRisk,
-  selectedPreset, onPresetSelect, allowUnsafeTransforms, setAllowUnsafeTransforms,
-  customTransforms, toggleCustomTransform, onLoadSample, onUploadFiles, onReset,
-  targetTokens, currentTokens,
+  mode,
+  setMode,
+  profile,
+  setProfile,
+  maxRisk,
+  setMaxRisk,
+  allowUnsafeTransforms,
+  setAllowUnsafeTransforms,
+  customTransforms,
+  toggleCustomTransform,
+  resetCustomTransforms,
+  onLoadSample,
+  onUploadFiles,
+  onReset,
+  targetTokens,
+  currentTokens,
+  recommendation,
+  onApplyRecommendation,
+  fileAccept,
 }: Props) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const advancedOpen = showAdvanced || mode === 'custom' || maxRisk !== 'medium' || allowUnsafeTransforms;
+
   return (
-    <aside className="w-72 shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-y-auto">
+    <aside className="w-full xl:w-80 shrink-0 flex flex-col border-b xl:border-b-0 xl:border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-y-auto">
       <div className="px-3 py-1.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 shrink-0">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Controls</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Options</span>
       </div>
 
       <div className="flex-1 p-3 space-y-5">
-        {/* Presets */}
+        {recommendation && (
+          <section className="rounded-xl border border-violet-200 bg-violet-50 p-3 dark:border-violet-900 dark:bg-violet-950/30">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold text-violet-700 dark:text-violet-300">Suggested setting</div>
+                <p className="mt-1 text-[11px] leading-snug text-violet-800 dark:text-violet-200">
+                  {PROFILE_META[recommendation.profile].label} + {getModeMeta(recommendation.mode).label}
+                </p>
+                <p className="mt-1 text-[11px] leading-snug text-violet-800/80 dark:text-violet-200/90">
+                  {recommendation.reason}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onApplyRecommendation}
+                className="shrink-0 rounded-md bg-violet-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-violet-500 transition-colors"
+              >
+                Use it
+              </button>
+            </div>
+          </section>
+        )}
+
         <section>
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-            Quick Start
-          </div>
-          <PresetSelector selected={selectedPreset} onSelect={onPresetSelect} />
+          <ProfileSelect value={profile} onChange={setProfile} />
         </section>
 
-        {/* Compression strength */}
         <section>
           <IntensitySelector
             value={mode}
             onChange={setMode}
             enabledTransforms={customTransforms}
             onTransformToggle={toggleCustomTransform}
+            onResetTransforms={resetCustomTransforms}
           />
         </section>
 
-        {/* Use case + risk */}
-        <section className="space-y-4">
-          <ProfileSelect value={profile} onChange={(v) => { setProfile(v); }} />
-          <RiskSelect value={maxRisk} onChange={setMaxRisk} />
-        </section>
-
-        {/* Safety override */}
-        <section>
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={allowUnsafeTransforms}
-              onChange={(e) => setAllowUnsafeTransforms(e.target.checked)}
-              className="mt-0.5 accent-violet-500"
-            />
-            <span className="text-xs text-amber-600 dark:text-amber-300 leading-tight">
-              Allow unsafe transforms
-              <span className="block text-[11px] text-slate-500 dark:text-slate-500 mt-0.5">
-                Apply transforms even if safety checks flag semantic risk.
-              </span>
-            </span>
-          </label>
-        </section>
-
-        {/* Token budget */}
         {targetTokens && currentTokens !== undefined && (
-          <section>
+          <section className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/60">
             <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-500 mb-1">
               <span>Token budget</span>
               <span className={currentTokens > targetTokens ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
@@ -99,10 +115,9 @@ export function ControlsPanel({
           </section>
         )}
 
-        {/* Input helpers */}
         <section>
           <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-            Input
+            Input tools
           </div>
           <div className="flex flex-wrap gap-2">
             <select
@@ -123,6 +138,7 @@ export function ControlsPanel({
               <input
                 type="file"
                 multiple
+                accept={fileAccept}
                 className="sr-only"
                 onChange={(e) => onUploadFiles(e.target.files)}
               />
@@ -134,6 +150,35 @@ export function ControlsPanel({
               Reset all
             </button>
           </div>
+        </section>
+
+        <section>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((current) => !current)}
+            className="text-[11px] text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            {advancedOpen ? 'Hide advanced options' : 'Show advanced options'}
+          </button>
+          {advancedOpen && (
+            <div className="mt-3 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+              <RiskSelect value={maxRisk} onChange={setMaxRisk} />
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allowUnsafeTransforms}
+                  onChange={(e) => setAllowUnsafeTransforms(e.target.checked)}
+                  className="mt-0.5 accent-violet-500"
+                />
+                <span className="text-xs text-amber-700 dark:text-amber-300 leading-tight">
+                  Allow riskier rewrites
+                  <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">
+                    Apply transforms even when safety checks recommend skipping them.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
         </section>
       </div>
     </aside>

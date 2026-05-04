@@ -23,10 +23,10 @@ const STATUS_LABEL: Record<SafetyStatus, string> = {
 };
 
 const STATUS_COLOR: Record<SafetyStatus, string> = {
-  passed: 'text-green-400',
-  warnings: 'text-yellow-400',
-  review: 'text-amber-400',
-  issues: 'text-red-400',
+  passed: 'text-green-600 dark:text-green-400',
+  warnings: 'text-yellow-600 dark:text-yellow-400',
+  review: 'text-amber-600 dark:text-amber-400',
+  issues: 'text-red-600 dark:text-red-400',
 };
 
 export function SafetyReviewPanel({ result }: Props) {
@@ -35,34 +35,34 @@ export function SafetyReviewPanel({ result }: Props) {
   const warnings = result.safetyIssues.filter((i) => i.severity === 'warning');
 
   return (
-    <div className="p-4 text-xs grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 p-4 text-xs lg:grid-cols-2">
       <div>
         <div className={`text-sm font-semibold mb-1 ${STATUS_COLOR[status]}`}>{STATUS_LABEL[status]}</div>
 
         {status === 'passed' && (
-          <div className="text-slate-400">No critical semantic loss detected.</div>
+          <div className="text-slate-500 dark:text-slate-400">No critical semantic loss detected.</div>
         )}
         {status === 'warnings' && (
-          <div className="text-slate-400">
+          <div className="text-slate-500 dark:text-slate-400">
             {warnings.length} warning{warnings.length !== 1 ? 's' : ''} detected. Review the output before use.
           </div>
         )}
         {status === 'review' && (
-          <div className="text-slate-400">
+          <div className="text-slate-500 dark:text-slate-400">
             {result.rejectedTransforms.length} transform{result.rejectedTransforms.length !== 1 ? 's' : ''} rejected
             and not applied to the final output.
             {warnings.length > 0 && ` ${warnings.length} warning${warnings.length !== 1 ? 's' : ''} also detected.`}
           </div>
         )}
         {status === 'issues' && (
-          <div className="text-slate-400">
+          <div className="text-slate-500 dark:text-slate-400">
             {errors.length} error{errors.length !== 1 ? 's' : ''} detected.
             {result.rejectedTransforms.length > 0 &&
               ` ${result.rejectedTransforms.length} transform${result.rejectedTransforms.length !== 1 ? 's' : ''} rejected.`}
           </div>
         )}
 
-        <div className="mt-2 space-y-1 text-slate-500">
+        <div className="mt-2 space-y-1 text-slate-500 dark:text-slate-400">
           <div>Safety issues: {result.safetyIssues.length}</div>
           <div>Rejected transforms: {result.rejectedTransforms.length}</div>
           {result.targetTokens !== undefined && (
@@ -76,8 +76,8 @@ export function SafetyReviewPanel({ result }: Props) {
           <div title={result.metrics.tokenizerExact ? 'Exact token count' : 'Token counts are approximate estimates'}>
             Token counter: {result.metrics.tokenizerUsed}
             {result.metrics.tokenizerExact
-              ? <span className="text-green-400 ml-1">(exact)</span>
-              : <span className="text-slate-400 ml-1">(approximate)</span>}
+              ? <span className="ml-1 text-green-600 dark:text-green-400">(exact)</span>
+              : <span className="ml-1 text-slate-500 dark:text-slate-400">(approximate)</span>}
           </div>
         </div>
       </div>
@@ -85,20 +85,20 @@ export function SafetyReviewPanel({ result }: Props) {
       <div>
         {result.rejectedTransforms.length > 0 && (
           <div className="mb-3">
-            <div className="text-slate-300 mb-1">Rejected transforms (not applied to output)</div>
+            <div className="mb-1 text-slate-700 dark:text-slate-300">Rejected transforms (not applied to output)</div>
             <div className="space-y-0.5">
               {result.rejectedTransforms.map((id) => (
-                <div key={id} className="text-red-400 font-mono">{id}</div>
+                <div key={id} className="font-mono text-red-600 dark:text-red-400">{id}</div>
               ))}
             </div>
           </div>
         )}
         {result.safetyIssues.length > 0 && (
           <div>
-            <div className="text-slate-300 mb-1">Safety issues</div>
+            <div className="mb-1 text-slate-700 dark:text-slate-300">Safety issues</div>
             <div className="max-h-28 overflow-auto space-y-0.5">
               {result.safetyIssues.map((issue, i) => (
-                <div key={i} className={issue.severity === 'error' ? 'text-red-400' : 'text-yellow-400'}>
+                <div key={i} className={issue.severity === 'error' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}>
                   [{issue.severity}] {issue.message}
                 </div>
               ))}
@@ -106,7 +106,7 @@ export function SafetyReviewPanel({ result }: Props) {
           </div>
         )}
         {result.rejectedTransforms.length === 0 && result.safetyIssues.length === 0 && (
-          <div className="text-slate-500">All transforms passed safety validation.</div>
+          <div className="text-slate-500 dark:text-slate-400">All transforms passed safety validation.</div>
         )}
       </div>
     </div>

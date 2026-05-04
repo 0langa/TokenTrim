@@ -159,8 +159,8 @@ export function SettingsView({
         <Section title="Privacy">
           <div className="rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3">
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              All compression runs entirely in your browser. No text is uploaded, no accounts are required, and no telemetry is collected.
-              Your input is saved to <code className="text-xs font-mono text-slate-500">localStorage</code> for convenience and can be cleared at any time using Reset in the compress workspace.
+              All text processing runs in your browser. No text is uploaded, no accounts are required, and no telemetry is collected.
+              LLM Compress downloads model files into browser storage for local inference. Your input is saved to <code className="text-xs font-mono text-slate-500">localStorage</code> for convenience and can be cleared at any time using Reset in the compress workspace.
             </p>
           </div>
         </Section>
