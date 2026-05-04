@@ -4,4 +4,4 @@ Five categories: prompt/instruction briefs, markdown docs, chat history, repo co
 
 Measurement: run `compress()` across modes/profiles, compare `estimatedTokensBefore` vs `estimatedTokensAfter`, inspect safety issues and rejected transforms for regressions.
 
-Token counts may be approximate (`exact: false`). Results are relative indicators, not guarantees.
+Token counts approximate (`exact: false`). Relative indicators, not guarantees.

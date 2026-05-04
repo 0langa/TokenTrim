@@ -4,14 +4,14 @@ Compress AI context locally — deterministic transforms, protected spans, seman
 
 ## Quick Start
 
-1. Open the web app → pick a **preset** (Prompt, Logs, Repo, Docs, Chat, Generic)
+1. Open web app → pick **preset** (Prompt, Logs, Repo, Docs, Chat, Generic)
 2. Paste text or drop files
 3. Review Output · Diff · Safety · Transforms · Report tabs
 4. Copy or download
 
 ## How It Works
 
-Protected spans (code, URLs, paths, numbers, JSON/YAML, tables) are extracted before transforms run and restored after. Each transform is safety-validated; outputs that cause negation loss, number loss, URL loss, or other semantic issues are **rejected and not applied**. See the **Reference** tab in the app for per-transform details and examples.
+Protected spans (code, URLs, paths, numbers, JSON/YAML, tables) extracted before transforms run and restored after. Each transform safety-validated; outputs that cause negation loss, number loss, URL loss, or other semantic issues are **rejected and not applied**. See **Reference** tab in app for per-transform details and examples.
 
 ## API
 
@@ -51,7 +51,7 @@ tokentrim list-transforms     # discovery
 | `--profile` | `general\|agent-context\|repo-context\|logs\|markdown-docs\|chat-history` |
 | `--max-risk` | `safe\|low\|medium\|high` |
 | `--tokenizer` | `approx-generic\|openai-cl100k\|openai-o200k` |
-| `--target-tokens <n>` | stop when output is under this count |
+| `--target-tokens <n>` | stop when output under this count |
 | `--out <path>` | output file or directory |
 | `--report` | write `.report.json` alongside output |
 | `--dry-run` | simulate without writing |

@@ -21,4 +21,4 @@ npm run benchmark -- --format json
 
 `fixture` · `mode` · `profile` · `chars in/out` · `tokens in/out` · `char%` · `tok%` · `ms` · `issues` · `rejected`
 
-Token counts are approximate. `issues` and `rejected` indicate safety activity, not failures.
+Token counts approximate. `issues` and `rejected` indicate safety activity, not failures.

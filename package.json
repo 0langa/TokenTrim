@@ -1,21 +1,69 @@
 {
   "name": "tokentrim",
-  "private": true,
   "version": "2.0.1",
+  "description": "Compress AI context locally — deterministic transforms, protected spans, semantic safety validation. No upload. No AI. No telemetry.",
   "type": "module",
+  "license": "MIT",
+  "author": "0langa",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0langa/TokenTrim.git"
+  },
+  "bugs": {
+    "url": "https://github.com/0langa/TokenTrim/issues"
+  },
+  "homepage": "https://0langa.github.io/TokenTrim/",
+  "keywords": [
+    "token",
+    "compression",
+    "context",
+    "llm",
+    "ai",
+    "prompt",
+    "tokenizer",
+    "text-compression",
+    "context-window",
+    "cli"
+  ],
   "bin": {
     "tokentrim": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/compression/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/compression/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc -b",
-    "build": "tsc -b && vite build && npm run build:cli",
+    "build": "tsc -b && vite build && npm run build:lib && npm run build:cli",
+    "build:lib": "node scripts/build-lib.mjs && npm run build:types",
     "build:cli": "node scripts/build-cli.mjs",
+    "build:types": "tsc -p tsconfig.lib.json",
     "build:pages": "npm run build && node --input-type=commonjs --eval \"require('fs').copyFileSync('dist/index.html','dist/404.html')\"",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "benchmark": "node scripts/benchmark.mjs"
   },
   "dependencies": {
@@ -30,6 +78,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^3.2.4",
     "esbuild": "^0.27.0",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",

@@ -1,63 +1,63 @@
 # Getting Started with the API
 
-This document provides a comprehensive guide to getting started with the API. It covers authentication, making requests, handling responses, and common error scenarios.
+Guide to getting started with the API. Covers authentication, requests, responses, common errors.
 
 ## Prerequisites
 
-Before you begin, please make sure you have the following prerequisites installed and configured on your system:
+Before you begin, install and configure following prerequisites:
 
 - Node.js version 18 or higher
 - npm version 9 or higher
-- A valid API key (obtain one from the developer portal at https://api.example.com/keys)
+- Valid API key (obtain from developer portal at https://api.example.com/keys)
 - Basic knowledge of REST APIs and HTTP protocols
 
 ## Authentication
 
-All API requests must include a valid authentication token. There are two methods of authentication that are currently supported:
+All API requests need valid auth token. Two methods supported:
 
 ### API Key Authentication
 
-To authenticate using an API key, include the key in the `Authorization` header of your request:
+Authenticate with API key in `Authorization` header:
 
 ```http
 Authorization: Bearer YOUR_API_KEY_HERE
 ```
 
-API keys are associated with your account and have the following properties:
-- They do not expire unless you manually revoke them
-- They are tied to specific permission scopes
-- You can create up to 10 API keys per account
+API key properties:
+- Do not expire unless manually revoked
+- Tied to specific permission scopes
+- Create up to 10 API keys per account
 - Each key can be restricted to specific IP addresses
 
 ### OAuth 2.0
 
-For applications that need to access the API on behalf of users, we support the OAuth 2.0 authorization code flow. The following steps describe the process:
+Applications accessing API on behalf of users: OAuth 2.0 authorization code flow. Steps:
 
-1. Redirect the user to the authorization URL: `https://auth.example.com/oauth/authorize`
-2. Include the following parameters in the redirect: `client_id`, `redirect_uri`, `scope`, `state`
-3. After authorization, the user will be redirected back to your `redirect_uri` with an authorization code
-4. Exchange the authorization code for an access token by making a POST request to `https://auth.example.com/oauth/token`
-5. Use the access token to make API requests on behalf of the user
+1. Redirect user to authorization URL: `https://auth.example.com/oauth/authorize`
+2. Include following parameters in redirect: `client_id`, `redirect_uri`, `scope`, `state`
+3. After authorization, user redirected back to your `redirect_uri` with authorization code
+4. Exchange authorization code for access token by making POST request to `https://auth.example.com/oauth/token`
+5. Use access token to make API requests on behalf of user
 
 ## Making Requests
 
 ### Base URL
 
-All API requests should be made to the following base URL:
+All API requests to base URL:
 
 ```
 https://api.example.com/v2
 ```
 
-Note: Version 1 of the API is deprecated and will be removed on January 15, 2027.
+Version 1 API deprecated, removed January 15, 2027.
 
 ### Request Format
 
-Requests should be made using JSON format. Include the `Content-Type: application/json` header for all requests that include a body.
+Requests use JSON format. Include `Content-Type: application/json` header for requests with body.
 
 ### Rate Limiting
 
-The API enforces the following rate limits:
+API rate limits:
 
 | Plan | Requests per minute | Requests per day |
 |------|---------------------|------------------|
@@ -65,7 +65,7 @@ The API enforces the following rate limits:
 | Pro | 300 | 100,000 |
 | Enterprise | 1,000 | Unlimited |
 
-When you exceed a rate limit, the API returns a `429 Too Many Requests` status code. The response includes a `Retry-After` header indicating how many seconds to wait before retrying.
+Exceeding rate limit returns `429 Too Many Requests`. Response includes `Retry-After` header with seconds to wait.
 
 ## Common Endpoints
 
@@ -75,7 +75,7 @@ When you exceed a rate limit, the API returns a `429 Too Many Requests` status c
 GET /resources
 ```
 
-Returns a paginated list of resources. Supports the following query parameters:
+Paginated list of resources. Query parameters:
 - `page`: Page number (default: 1)
 - `limit`: Items per page (default: 20, max: 100)
 - `sort`: Sort field (default: `created_at`)
@@ -96,7 +96,7 @@ Content-Type: application/json
 
 ## Error Handling
 
-The API uses standard HTTP status codes to indicate the success or failure of a request. Error responses include a JSON body with the following fields:
+API uses standard HTTP status codes. Error responses include JSON body with following fields:
 
 ```json
 {

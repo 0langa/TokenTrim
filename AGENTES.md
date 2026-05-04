@@ -1,6 +1,6 @@
 # AGENTES.md — TokenTrim Codebase Guide
 
-TokenTrim v2.0.1. Vite + React + TypeScript web app + Node CLI. Lossless-first AI token compression. Deployed to GitHub Pages.
+TokenTrim v2.0.1. Vite + React + TypeScript web app + Node CLI. Lossless-first AI token compression. GitHub Pages deploy.
 
 ---
 
@@ -117,8 +117,8 @@ User types text
 | `RiskLevel` | `'safe' \| 'low' \| 'medium' \| 'high'` |
 | `TokenizerKind` | `'approx-generic' \| 'openai-cl100k' \| 'openai-o200k'` |
 | `CompressionOptions` | Input to `compress()`: mode, profile, tokenizer, targetTokens, maxRisk, etc. |
-| `CompressionResult` | Output: output text, metrics, report, warnings, safetyIssues, rejectedTransforms |
-| `TokenTrimTransform` | Shape each transform must implement (`id`, `risk`, `defaultModes`, `apply`) |
+| `CompressionResult` | `compress()` output: text, metrics, report, warnings, safetyIssues, rejectedTransforms |
+| `TokenTrimTransform` | Shape each transform implements (`id`, `risk`, `defaultModes`, `apply`) |
 | `TransformContext` | Passed to every `apply()`: mode, profile, tokenizer, targetTokens, maxRisk |
 | `SafetyIssue` | Loss detected by semanticValidator: severity + category |
 | `ProtectedSpan` | `{type, placeholder, content}` — one substituted span |
@@ -139,7 +139,7 @@ User types text
 
 ## Transform Registry
 
-All transforms live in `TRANSFORM_REGISTRY` (`transformRegistry.ts`). Each has `defaultModes[]` (which modes include it by default) and optionally `profileOnly: true` (only runs when a matching profile is active).
+All transforms in `TRANSFORM_REGISTRY` (`transformRegistry.ts`). Each has `defaultModes[]` (default inclusion) and optional `profileOnly: true` (runs only with matching profile).
 
 | ID | Risk | Profile-only |
 |----|------|-------------|
@@ -156,13 +156,13 @@ All transforms live in `TRANSFORM_REGISTRY` (`transformRegistry.ts`). Each has `
 | `section-salience` | medium | yes (`agent-context`, `repo-context`, `chat-history`, `markdown-docs`) |
 | `log-compression` | low | yes (`logs`) |
 
-To add a transform: implement `TokenTrimTransform`, import it in `transformRegistry.ts`, push to `TRANSFORM_REGISTRY`.
+Add transform: implement `TokenTrimTransform`, import in `transformRegistry.ts`, push to `TRANSFORM_REGISTRY`.
 
 ---
 
 ## Protected Spans
 
-`protectSpans()` replaces sensitive content with `␟TT_SPAN_<seed>_<n>␟` placeholders before any transform runs. `restoreSpans()` puts originals back after. Span types: `fenced-code`, `inline-code`, `url`, `file-path`, `cli-command`, `env-var`, `api-placeholder`, `number-unit`, `json-block`, `yaml-toml`, `markdown-table`, `markdown-heading`, `email`, `quoted-string`.
+`protectSpans()` replaces sensitive content with `␟TT_SPAN_<seed>_<n>␟` placeholders before transforms run. `restoreSpans()` restores originals after. Span types: `fenced-code`, `inline-code`, `url`, `file-path`, `cli-command`, `env-var`, `api-placeholder`, `number-unit`, `json-block`, `yaml-toml`, `markdown-table`, `markdown-heading`, `email`, `quoted-string`.
 
 Transforms must NOT touch placeholder tokens — they look like `␟TT_SPAN_*␟`.
 
@@ -170,31 +170,31 @@ Transforms must NOT touch placeholder tokens — they look like `␟TT_SPAN_*␟
 
 ## Safety Validator
 
-After each transform, `validateSemanticSafety(before, after, spans, spans)` checks for lost: negations, requirement markers, numbers, dates, semvers, urls, file paths, code identifiers. Returns `SafetyIssue[]`. Issues with `severity: 'error'` cause transform rejection unless `allowUnsafeTransforms: true`.
+After each transform, `validateSemanticSafety(before, after, spans, spans)` checks for lost: negations, requirement markers, numbers, dates, semvers, urls, file paths, code identifiers. Returns `SafetyIssue[]`. `severity: 'error'` rejects transform unless `allowUnsafeTransforms: true`.
 
-A transform can declare `allowedSafetyCategories` in its result to suppress known-safe losses.
+Transform can declare `allowedSafetyCategories` to suppress known-safe losses.
 
 ---
 
 ## Budget Optimizer
 
-`optimizeToBudget(input, options)` in `budgetOptimizer.ts` escalates through `['light','normal','heavy','ultra']` until `estimatedTokensAfter <= targetTokens`. Returns best result even if budget unmet.
+`optimizeToBudget(input, options)` in `budgetOptimizer.ts` escalates through `['light','normal','heavy','ultra']` until `estimatedTokensAfter <= targetTokens`. Returns best result even if budget missed.
 
 ---
 
 ## Profiles vs Modes
 
-- **Mode** = intensity level (how aggressive). Determines which transforms run by default.
-- **Profile** = content type hint. Overrides transform order and enables profile-only transforms.
-- When both set: `chooseTransforms()` in `pipeline.ts` uses `PROFILE_TRANSFORM_ORDER[profile]`, filtered to transforms also enabled by the mode.
+- **Mode** = intensity. Determines default transforms.
+- **Profile** = content type hint. Overrides transform order, enables profile-only transforms.
+- Both set: `chooseTransforms()` in `pipeline.ts` uses `PROFILE_TRANSFORM_ORDER[profile]`, filtered to transforms enabled by mode.
 
 ---
 
 ## CLI Entry Point
 
-`src/cli.ts` — Node.js CLI. Reads stdin or file paths, calls `compress()` / `optimizeToBudget()`, writes to stdout. Supports `--mode`, `--profile`, `--tokenizer`, `--target-tokens`, `--max-risk`, `--transforms`, `--report`, `--recursive`, `--dry-run`, `--format json|text`.
+`src/cli.ts` — Node.js CLI. Reads stdin or files, calls `compress()` / `optimizeToBudget()`, writes stdout. Supports `--mode`, `--profile`, `--tokenizer`, `--target-tokens`, `--max-risk`, `--transforms`, `--report`, `--recursive`, `--dry-run`, `--format json|text`.
 
-Config loaded from `.tokentrimrc` / `tokentrim.config.json`. Ignore patterns from `.tokentrimignore`.
+Config from `.tokentrimrc` / `tokentrim.config.json`. Ignore patterns from `.tokentrimignore`.
 
 ---
 
@@ -207,22 +207,22 @@ Config loaded from `.tokentrimrc` / `tokentrim.config.json`. Ignore patterns fro
 
 ---
 
-## App State (App.tsx)
+## App State (`App.tsx`)
 
-Global state held in `App.tsx` and passed down as props:
+Global state in `App.tsx`, passed as props:
 - `view`: `'compress' | 'settings' | 'reference'`
 - `theme`: dark/light
 - `tokenizer`: `TokenizerKind`
 - `targetTokens`: string (empty = no budget)
 - `allowUnsafeTransforms`: boolean
 
-`CompressView` is always mounted (hidden via `h-full` / `hidden` CSS) to preserve state.
+`CompressView` always mounted (hidden via `h-full` / `hidden` CSS) to preserve state.
 
 ---
 
 ## Test Files
 
-Co-located `*.test.ts` files. Run with `npm test` (Vitest). Key coverage:
+Co-located `*.test.ts`. Run with `npm test` (Vitest). Key coverage:
 - `pipeline.test.ts` — end-to-end compress() scenarios
 - `budgetOptimizer.test.ts` — budget escalation
 - `protectedSpans.test.ts` — placeholder round-trips
@@ -242,4 +242,4 @@ npm test           # Vitest
 npm run lint       # ESLint
 ```
 
-Build output in `dist/`. GitHub Pages deployment from `dist/`.
+Build output in `dist/`. GitHub Pages deploy from `dist/`.

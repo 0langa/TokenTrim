@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "skipLibCheck": true,
+    "erasableSyntaxOnly": true,
+    "strict": true
+  },
+  "include": [
+    "src/compression/**/*.ts",
+    "src/version.ts",
+    "src/global.d.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ]
+}

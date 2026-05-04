@@ -4,41 +4,41 @@
 
 ---
 
-**Alice:** Good morning everyone. Let's start with the status update on the migration to the new authentication system.
+**Alice:** Good morning. Start with status update on migration to new auth system.
 
-**Bob:** Sure, I've been working on it. The migration is about 60% complete. We've migrated the user table and the sessions table. The main challenge right now is the legacy token format. We have tokens that are still in the old format that need to be supported during the transition period.
+**Bob:** Sure. Migration ~60% complete. Migrated user and sessions tables. Main challenge: legacy token format. Old-format tokens need support during transition.
 
-**Alice:** That makes sense. How long do you think the transition period needs to be?
+**Alice:** Makes sense. How long transition period needs to be?
 
-**Bob:** I think we need at least 30 days to allow existing users to refresh their tokens. We could potentially reduce it to 14 days if we send email notifications proactively.
+**Bob:** Need at least 30 days for existing users to refresh tokens. Could reduce to 14 days with proactive email notifications.
 
-**Carol:** From the frontend side, I've already updated the token handling to support both formats. The change is behind the feature flag `AUTH_LEGACY_TOKENS` which is currently set to true in production.
+**Carol:** Frontend token handling updated for both formats. Behind feature flag `AUTH_LEGACY_TOKENS`, true in production.
 
-**Alice:** Good. Dave, what's the deployment situation?
+**Alice:** Good. Dave, deployment situation?
 
-**Dave:** The staging deployment went smoothly. We ran into some issues with the health checks but those were resolved by adjusting the timeout from 10 seconds to 30 seconds. Production should be straightforward.
+**Dave:** Staging deployment smooth. Health check issues resolved by adjusting timeout from 10s to 30s. Production straightforward.
 
-**Alice:** Great. Let's schedule the production deployment for next Tuesday. Bob, can you have the migration ready by Monday?
+**Alice:** Great. Schedule prod deploy next Tuesday. Bob, migration ready by Monday?
 
-**Bob:** Yes, I should be able to finish it by Friday actually. That gives us the weekend buffer.
+**Bob:** Yes, finish by Friday. Weekend buffer.
 
-**Alice:** Perfect. Now let's talk about the API rate limiting work. Carol, I know you've been looking at the frontend impact.
+**Alice:** Perfect. Now API rate limiting. Carol, frontend impact?
 
-**Carol:** Right. The current rate limit is 100 requests per minute for free tier users. Our frontend makes about 45 requests per minute during heavy usage, so we have some headroom. But if we lower the free tier limit, we'll need to implement better request batching.
+**Carol:** Right. Current rate limit: 100 req/min free tier. Frontend ~45 req/min heavy usage, some headroom. Lower free tier limit → need better request batching.
 
-**Bob:** We're planning to reduce it to 60 requests per minute for free tier. The Pro plan will stay at 300. This should help reduce server costs by about 15-20%.
+**Bob:** Planning to reduce free tier to 60 req/min. Pro stays at 300. Reduces server costs ~15-20%.
 
-**Dave:** I can set up the rate limiting configuration in the nginx reverse proxy. It's straightforward with the `limit_req_zone` directive.
+**Dave:** Can set up rate limiting in nginx reverse proxy. Straightforward with `limit_req_zone`.
 
-**Alice:** Sounds good. Let's aim to have the rate limiting changes deployed alongside the auth migration next Tuesday. Any other business?
+**Alice:** Sounds good. Deploy rate limiting changes alongside auth migration next Tuesday. Other business?
 
-**Carol:** Just a quick note — the new onboarding flow is ready for review. I'll send out a review link this afternoon. I'd love feedback before we ship it next week.
+**Carol:** Quick note — new onboarding flow ready for review. Will send review link this afternoon. Want feedback before ship next week.
 
 **Bob:** I'll take a look.
 
 **Dave:** Same here.
 
-**Alice:** Great. Thanks everyone. Let's sync again Thursday.
+**Alice:** Great. Thanks everyone. Sync Thursday.
 
 ---
 
