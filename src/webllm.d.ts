@@ -20,6 +20,7 @@ declare module '@mlc-ai/web-llm' {
   export interface ChatCompletionRequestBase {
     messages: ChatCompletionMessageParam[];
     temperature?: number | null;
+    top_p?: number | null;
     max_tokens?: number | null;
     stream?: false | null;
   }

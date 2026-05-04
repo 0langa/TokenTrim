@@ -33,19 +33,19 @@ export function LlmCompressView() {
     if (!input.trim()) return;
     setOutput('');
     setMetrics(null);
-    try {
-      const result = await compress(input, systemPrompt);
-      setOutput(result);
-      const origTok = estimateTokens(input, 'approx-generic').tokens;
-      const outTok = estimateTokens(result, 'approx-generic').tokens;
-      setMetrics({
-        originalTokens: origTok,
-        outputTokens: outTok,
-        savings: origTok > 0 ? Math.round((1 - outTok / origTok) * 100) : 0,
-      });
-    } catch {
-      // error handled by hook
+    const result = await compress(input, systemPrompt);
+    if (!result) {
+      // Error already set in hook; don't overwrite empty output
+      return;
     }
+    setOutput(result);
+    const origTok = estimateTokens(input, 'approx-generic').tokens;
+    const outTok = estimateTokens(result, 'approx-generic').tokens;
+    setMetrics({
+      originalTokens: origTok,
+      outputTokens: outTok,
+      savings: origTok > 0 ? Math.round((1 - outTok / origTok) * 100) : 0,
+    });
   }, [input, systemPrompt, compress]);
 
   useEffect(() => {
@@ -223,6 +223,18 @@ export function LlmCompressView() {
           <div className="flex-1 overflow-auto p-3">
             {output ? (
               <pre className="text-sm font-mono whitespace-pre-wrap text-slate-800 dark:text-slate-100">{output}</pre>
+            ) : error && engineState !== 'downloading' ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center max-w-sm">
+                  <p className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</p>
+                  {modelId === 'SmolLM2-360M-Instruct-q4f16_1-MLC' && (
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      SmolLM2 360M is very small and often fails on complex instructions.
+                      Try switching to Llama 3.2 1B for better results.
+                    </p>
+                  )}
+                </div>
+              </div>
             ) : (
               <div className="h-full flex items-center justify-center">
                 <p className="text-xs text-slate-400 dark:text-slate-500 text-center">

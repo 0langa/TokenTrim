@@ -84,25 +84,30 @@ export function useWebLLM(): UseWebLLMReturn {
 
       setEngineState('compressing');
       try {
+        // Small models (e.g. SmolLM2 360M) often ignore system messages.
+        // Combine instruction + text into a single user message for reliability.
+        const prompt = `${systemPrompt}\n\n---\n\n${text}`;
+
         const promise = engine.chat.completions.create({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: text },
-          ],
-          temperature: 0.2,
-          max_tokens: Math.max(256, Math.round(text.length / 3)),
-          stream: false,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.7,
+          top_p: 0.9,
         });
         currentCompressPromise.current = promise;
         const reply = await promise;
         currentCompressPromise.current = null;
 
-        const content = reply.choices[0]?.message?.content ?? '';
+        const content = reply.choices[0]?.message?.content?.trim() ?? '';
+        if (!content) {
+          throw new Error('Model returned empty output. Try a larger model (Llama 3.2 1B) or shorter input.');
+        }
         setEngineState('ready');
         return content;
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
         setEngineState('ready');
-        throw err;
+        return '';
       }
     },
     [],
