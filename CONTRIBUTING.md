@@ -16,7 +16,7 @@ npm run build    # Full build (types + vite + lib + cli)
 ```
 src/
   compression/
-    transforms/     # All text transforms
+    transforms/       # All text transforms
     safety/         # Semantic validation
     pipeline.ts     # Main compress() API
   cli/              # CLI entry point and helpers
