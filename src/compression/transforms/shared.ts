@@ -2,6 +2,10 @@ import type { RiskLevel, TransformExample, TransformStat } from '../types';
 
 export type Rule = { pattern: RegExp; replacement: string };
 
+function interpolateReplacement(replacement: string, groups: string[]): string {
+  return replacement.replace(/\$(\d+)/g, (_, n) => groups[Number(n) - 1] ?? '');
+}
+
 export function applyRules(
   input: string,
   transformId: string,
@@ -15,11 +19,13 @@ export function applyRules(
   let charsSaved = 0;
 
   for (const rule of rules) {
-    output = output.replace(rule.pattern, (match) => {
+    output = output.replace(rule.pattern, (match, ...args) => {
       if (shouldReplace && !shouldReplace(match)) {
         return match;
       }
-      const after = rule.replacement;
+      // args contains capture groups followed by offset and input string
+      const groups = args.slice(0, -2);
+      const after = interpolateReplacement(rule.replacement, groups);
       replacements += 1;
       charsSaved += Math.max(0, match.length - after.length);
       if (examples.length < 10) {

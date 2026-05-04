@@ -19,6 +19,10 @@ const SCALE_RULES: Array<[RegExp, string]> = [
   [/\b(\d+(?:\.\d+)?)\s*(?:million|mn|mil)\b/gi, '$1M'],
   [/\b(\d+(?:\.\d+)?)\s*(?:thousand|k)\b/gi, '$1K'],
   [/\b(\d+(?:\.\d+)?)\s*percent\b/gi, '$1%'],
+  [/\b(\d+(?:\.\d+)?)\s*dollars?\b/gi, '$$$1'],
+  [/\b(\d+(?:\.\d+)?)\s*USD\b/gi, '$$$1'],
+  [/\b(\d+(?:\.\d+)?)\s*EUR\b/gi, '€$1'],
+  [/\b(\d+(?:\.\d+)?)\s*GBP\b/gi, '£$1'],
 ];
 
 const DATE_RULES: Array<[RegExp, (m: string, ...g: string[]) => string]> = [
@@ -34,10 +38,35 @@ const DATE_RULES: Array<[RegExp, (m: string, ...g: string[]) => string]> = [
       return `${year}-${mm}-${day.padStart(2, '0')}`;
     },
   ],
+  // Month Day (no year) → MM-DD
+  [
+    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?\b/gi,
+    (_m, mon, day) => {
+      const months: Record<string, string> = {
+        january: '01', february: '02', march: '03', april: '04',
+        may: '05', june: '06', july: '07', august: '08',
+        september: '09', october: '10', november: '11', december: '12',
+      };
+      const mm = months[mon.toLowerCase()] ?? '??';
+      return `${mm}-${day.padStart(2, '0')}`;
+    },
+  ],
+  // Day Month Year → YYYY-MM-DD
+  [
+    /\b(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/gi,
+    (_m, day, mon, year) => {
+      const months: Record<string, string> = {
+        january: '01', february: '02', march: '03', april: '04',
+        may: '05', june: '06', july: '07', august: '08',
+        september: '09', october: '10', november: '11', december: '12',
+      };
+      const mm = months[mon.toLowerCase()] ?? '??';
+      return `${year}-${mm}-${day.padStart(2, '0')}`;
+    },
+  ],
 ];
 
 function buildWordNumberPattern(): RegExp {
-  // Build alternation from longest to shortest
   const words = NUMBER_MAP.map(([w]) => w.replace(/\s+/g, '\\s+')).join('|');
   return new RegExp(`\\b(?:${words})(?:\\s+and\\s+(?:${words}))*\\b`, 'gi');
 }
@@ -48,7 +77,6 @@ function parseWordNumber(phrase: string): number {
   for (const [word, val] of NUMBER_MAP) {
     if (norm.includes(word)) {
       total += val;
-      // Rough: just sum matched values (good enough for common phrases)
     }
   }
   return total;
@@ -96,6 +124,13 @@ export function numericTransform(input: string): {
       return after;
     });
   }
+
+  // 4. Currency compacting
+  output = output.replace(/\$\s+(\d)/g, (match, digit) => {
+    const after = `$${digit}`;
+    addExample(match, after);
+    return after;
+  });
 
   const risk: RiskLevel = 'low';
   return {

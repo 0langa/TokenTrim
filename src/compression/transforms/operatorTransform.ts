@@ -1,13 +1,12 @@
 import type { Rule } from './shared';
 
-// Code-like line: contains camelCase, underscores, brackets, or backticks
+// Code-like line: contains camelCase, snake_case, brackets, or backticks
 const CODE_LINE_RE = /[_`[\]{}<>()]|[a-z][A-Z]|[A-Z]{2,}[a-z]/;
 
 function isCodeLine(line: string): boolean {
   return CODE_LINE_RE.test(line);
 }
 
-// Apply operator rules only to non-code lines
 function applyProseOnly(input: string, rules: Rule[]): { output: string; replacements: number; charsSaved: number; examples: Array<{ before: string; after: string }> } {
   const lines = input.split('\n');
   let replacements = 0;
@@ -35,11 +34,30 @@ function applyProseOnly(input: string, rules: Rule[]): { output: string; replace
 const BASE: Rule[] = [
   { pattern: /\b(causes|results in|leads to)\b/gi, replacement: '->' },
   { pattern: /\band\b/g, replacement: '&' },
+  { pattern: /\bor\b/g, replacement: '|' },
   { pattern: /\bwith\b/g, replacement: 'w/' },
   { pattern: /\bwithout\b/g, replacement: 'w/o' },
   { pattern: /\bgreater than\b/gi, replacement: '>' },
   { pattern: /\bless than\b/gi, replacement: '<' },
   { pattern: /\bequals\b/gi, replacement: '=' },
+  { pattern: /\bequal to\b/gi, replacement: '=' },
+  { pattern: /\bis equal to\b/gi, replacement: '=' },
+  { pattern: /\bis greater than\b/gi, replacement: '>' },
+  { pattern: /\bis less than\b/gi, replacement: '<' },
+  { pattern: /\bequivalent to\b/gi, replacement: '==' },
+  { pattern: /\bnot equal to\b/gi, replacement: '!=' },
+  { pattern: /\bnot equals\b/gi, replacement: '!=' },
+  { pattern: /\bgreater than or equal to\b/gi, replacement: '>=' },
+  { pattern: /\bless than or equal to\b/gi, replacement: '<=' },
+  { pattern: /\bat least\b/gi, replacement: '>=' },
+  { pattern: /\bat most\b/gi, replacement: '<=' },
+  { pattern: /\bplus\b/gi, replacement: '+' },
+  { pattern: /\bminus\b/gi, replacement: '-' },
+  { pattern: /\btimes\b/gi, replacement: '*' },
+  { pattern: /\bdivided by\b/gi, replacement: '/' },
+  { pattern: /\bmodulo\b/gi, replacement: '%' },
+  { pattern: /\bpercent\b/gi, replacement: '%' },
+  { pattern: /\bpercentage\b/gi, replacement: '%' },
 ];
 
 export function operatorTransform(input: string, becauseMode: 'bc' | 'left-arrow' = 'bc') {

@@ -58,10 +58,10 @@ describe('compress pipeline', () => {
   });
 
   it('keeps markdown/code fences structure', () => {
-    const md = '# H\n\nParagraph\n\n- one\n- two\n\n```ts\nconst x = 1\n```';
+    const md = '# H\n\nParagraph\n\n- alpha\n- beta\n\n```ts\nconst x = 1\n```';
     const out = compress(md, { mode: 'heavy', profile: 'markdown-docs' });
     expect(out.output).toContain('```ts');
-    expect(out.output).toContain('\n\n- one');
+    expect(out.output).toContain('\n\n- alpha');
   });
 
   it('general profile respects mode aggressiveness', () => {

@@ -1,5 +1,39 @@
 import type { ProtectedSpan, ProtectedSpanStats, ProtectedSpanType } from './types';
 
+const TRACKING_PARAMS = [
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+  'utm_id', 'utm_source_platform', 'utm_creative_format', 'utm_marketing_tactic',
+  'fbclid', 'gclid', 'dclid', 'msclkid', 'twclid', 'li_fat_id',
+  'wickedid', 'igshid', 'mc_cid', 'mc_eid', 'mkt_tok',
+  'ref', 'referrer', 'referral', 'source', 'medium',
+];
+
+function stripUrlParams(url: string): string {
+  try {
+    const u = new URL(url);
+    let changed = false;
+    for (const param of TRACKING_PARAMS) {
+      if (u.searchParams.has(param)) {
+        u.searchParams.delete(param);
+        changed = true;
+      }
+    }
+    // Clean empty search
+    if (changed && u.search === '') {
+      return u.toString().replace(/\?$/, '');
+    }
+    return changed ? u.toString() : url;
+  } catch {
+    // Fallback: simple regex stripping for malformed URLs
+    let cleaned = url;
+    for (const param of TRACKING_PARAMS) {
+      cleaned = cleaned.replace(new RegExp(`[?&]${param}=[^&]*`, 'gi'), '');
+    }
+    cleaned = cleaned.replace(/\?&/g, '?').replace(/&&/g, '&');
+    return cleaned;
+  }
+}
+
 const PATTERNS: Record<ProtectedSpanType, RegExp> = {
   'fenced-code': /```[\s\S]*?```/g,
   'inline-code': /`[^`\n]+`/g,
@@ -52,7 +86,9 @@ export function protectSpans(text: string, activeTypes: ProtectedSpanType[]): Pr
         salt += 1;
         placeholder = createPlaceholder(seed + salt.toString(36), spans.length);
       }
-      spans.push({ type, placeholder, content });
+      // Strip tracking params from URLs before storing
+      const storedContent = type === 'url' ? stripUrlParams(content) : content;
+      spans.push({ type, placeholder, content: storedContent });
       stats[type] += 1;
       return placeholder;
     });

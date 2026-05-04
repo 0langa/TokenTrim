@@ -10,9 +10,36 @@ import {
   extractUrls,
 } from './extractors';
 
-function diffLoss(before: string[], after: string[]): string[] {
-  const afterSet = new Set(after.map((x) => x.toLowerCase()));
-  return before.filter((b) => !afterSet.has(b.toLowerCase()));
+function diffLoss(before: string[], after: string[], normalizer?: (s: string) => string): string[] {
+  const afterSet = new Set(after.map((x) => (normalizer ? normalizer(x) : x.toLowerCase())));
+  return before.filter((b) => !afterSet.has(normalizer ? normalizer(b) : b.toLowerCase()));
+}
+
+const NEGATION_NORMALIZE: Record<string, string> = {
+  'do not': "don't",
+  'does not': "doesn't",
+  'did not': "didn't",
+  'cannot': "can't",
+  'will not': "won't",
+  'would not': "wouldn't",
+  'should not': "shouldn't",
+  'could not': "couldn't",
+  'might not': "mightn't",
+  'must not': "mustn't",
+  'is not': "isn't",
+  'are not': "aren't",
+  'was not': "wasn't",
+  'were not': "weren't",
+  'has not': "hasn't",
+  'have not': "haven't",
+  'had not': "hadn't",
+  'it is': "it's",
+  'that is': "that's",
+  'there is': "there's",
+};
+
+function normalizeNegation(neg: string): string {
+  return NEGATION_NORMALIZE[neg.toLowerCase()] ?? neg.toLowerCase();
 }
 
 export interface SafetyConfig {
@@ -35,7 +62,7 @@ export function validateSemanticSafety(
     }
   };
 
-  addLosses('negation-loss', diffLoss(extractNegations(before), extractNegations(after)), 'error', 'Negation');
+  addLosses('negation-loss', diffLoss(extractNegations(before), extractNegations(after), normalizeNegation), 'error', 'Negation');
   addLosses('requirement-loss', diffLoss(extractRequirements(before), extractRequirements(after)), 'error', 'Requirement marker');
   addLosses('number-loss', diffLoss(extractNumbers(before), extractNumbers(after)), 'error', 'Number');
   addLosses('date-loss', diffLoss(extractDates(before), extractDates(after)), 'error', 'Date');

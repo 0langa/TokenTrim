@@ -11,23 +11,45 @@ import { deduplicationTransform } from './transforms/deduplicationTransform';
 import { sectionSalienceTransform } from './transforms/sectionSalienceTransform';
 import { logCompressionTransform } from './transforms/logCompressionTransform';
 import { markdownCompressionTransform } from './transforms/markdownCompressionTransform';
+import { contractionTransform } from './transforms/contractionTransform';
+import { synonymTransform } from './transforms/synonymTransform';
+import { punctuationTransform } from './transforms/punctuationTransform';
+import { repeatedWordTransform } from './transforms/repeatedWordTransform';
+import { numberRangeTransform } from './transforms/numberRangeTransform';
+import { timeDurationTransform } from './transforms/timeDurationTransform';
+import { pleonasmTransform } from './transforms/pleonasmTransform';
 
 function cavemanCompactionTransform(input: string, mode: CompressionMode) {
   let out = input;
   const rules: Array<[RegExp, string]> =
     mode === 'ultra'
       ? [
-          [/\b(you should|you can|you need to|we should|we need to)\b/gi, ''],
+          // Heavy base rules
+          [/\b(the|a|an)\b/gi, ''],
+          [/\b(therefore|as a result)\b/gi, '=>'],
+          // Ultra-only: safe removals (no requirements/negations/prepositions)
           [/\b(it is|there is|there are|this is|that is)\b/gi, ''],
           [/\b(very|really|quite|just|actually|basically)\b/gi, ''],
-          [/\b(to be able to|in order to)\b/gi, 'to'],
-          [/\b(do not|does not|did not|cannot)\b/gi, 'not'],
           [/\b(please|kindly)\b/gi, ''],
-          [/\b(therefore|hence|as a result)\b/gi, '=>'],
-          [/\b(the|a|an|that|which|who|whom|whose)\b/gi, ''],
-          [/\b(should|would|could|might|may)\b/gi, ''],
-          [/\b(of|for|to|from|into|onto|upon|over|under)\b/gi, ''],
-          [/\b(is|are|was|were|be|been|being)\b/gi, ''],
+          [/\b(to be able to|in order to)\b/gi, 'to'],
+          // Negations → contractions (preserves semantic safety)
+          [/\bdo not\b/gi, "don't"],
+          [/\bdoes not\b/gi, "doesn't"],
+          [/\bdid not\b/gi, "didn't"],
+          [/\bcannot\b/gi, "can't"],
+          [/\bwill not\b/gi, "won't"],
+          [/\bwould not\b/gi, "wouldn't"],
+          [/\bshould not\b/gi, "shouldn't"],
+          [/\bcould not\b/gi, "couldn't"],
+          [/\bmight not\b/gi, "mightn't"],
+          [/\bmust not\b/gi, "mustn't"],
+          [/\bis not\b/gi, "isn't"],
+          [/\bare not\b/gi, "aren't"],
+          [/\bwas not\b/gi, "wasn't"],
+          [/\bwere not\b/gi, "weren't"],
+          [/\bhas not\b/gi, "hasn't"],
+          [/\bhave not\b/gi, "haven't"],
+          [/\bhad not\b/gi, "hadn't"],
         ]
       : [[/\b(the|a|an)\b/gi, ''], [/\b(therefore|as a result)\b/gi, '=>']];
   let replacements = 0;
@@ -41,23 +63,30 @@ function cavemanCompactionTransform(input: string, mode: CompressionMode) {
       return r;
     });
   }
-  if (mode === 'ultra' || mode === 'heavy') {
-    out = out.replace(/\b[A-Za-z]{7,}\b/g, (word) => {
-      const squeezed = word[0] + word.slice(1).replace(/[aeiou]/gi, '');
-      if (squeezed.length < word.length) {
-        replacements += 1;
-        charsSaved += word.length - squeezed.length;
-        if (examples.length < 10) examples.push({ before: word, after: squeezed });
-        return squeezed;
-      }
-      return word;
-    });
-  }
+  // Vowel stripping: more aggressive in ultra (5+ chars) vs heavy (7+ chars)
+  // Negative lookahead skips contraction bases (e.g. mustn't → don't match "mustn")
+  const PROTECTED_WORDS = new Set([
+    'must', 'should', 'shall', 'required', 'forbidden', 'may',
+    'not', 'never', 'no', 'cannot', 'cant', 'dont', 'doesnt', 'didnt',
+    'wont', 'wouldnt', 'couldnt', 'mightnt', 'mustnt', 'isnt', 'arent',
+    'wasnt', 'werent', 'hasnt', 'havent', 'hadnt',
+    'true', 'false', 'null', 'undefined', 'error', 'warning', 'fatal',
+  ]);
+  const minLength = mode === 'ultra' ? 5 : 7;
+  out = out.replace(new RegExp('\\b[A-Za-z]{' + minLength + ',}\\b(?!\')', 'g'), (word) => {
+    if (PROTECTED_WORDS.has(word.toLowerCase())) return word;
+    const squeezed = word[0] + word.slice(1).replace(/[aeiou]/gi, '');
+    if (squeezed.length < word.length) {
+      replacements += 1;
+      charsSaved += word.length - squeezed.length;
+      if (examples.length < 10) examples.push({ before: word, after: squeezed });
+      return squeezed;
+    }
+    return word;
+  });
   const risk: 'medium' | 'high' = mode === 'ultra' ? 'high' : 'medium';
   if (mode === 'ultra') {
-    out = out
-      .replace(/\b(?:and|or|with|without|from|into|onto|upon|over|under)\b/gi, '')
-      .replace(/[^\S\n]{2,}/g, ' ');
+    out = out.replace(/[^\S\n]{2,}/g, ' ');
   }
   return { output: out, stat: { transformId: 'caveman-compaction', replacements, charsSaved, risk, examples } };
 }
@@ -70,6 +99,13 @@ export const TRANSFORM_REGISTRY: TokenTrimTransform[] = [
   { id: 'filler-removal', label: 'Filler Removal', description: 'Remove low-signal filler phrases', risk: 'medium', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => fillerRemoval(input) },
   { id: 'numeric', label: 'Numeric Normalization', description: 'Convert words to compact number forms', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => numericTransform(input) },
   { id: 'prose-rewrite:common', label: 'Prose Rewrite', description: 'Rewrite verbose prose', risk: 'medium', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => proseRewrite(input, 'common') },
+  { id: 'contraction', label: 'Contraction', description: 'Contract common word pairs', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => contractionTransform(input) },
+  { id: 'synonym', label: 'Synonym Substitution', description: 'Replace verbose words with shorter synonyms', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => synonymTransform(input) },
+  { id: 'punctuation', label: 'Punctuation Cleanup', description: 'Clean up punctuation and whitespace', risk: 'safe', defaultModes: ['light', 'normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => punctuationTransform(input) },
+  { id: 'repeated-word', label: 'Repeated Word Collapse', description: 'Collapse repeated words', risk: 'safe', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => repeatedWordTransform(input) },
+  { id: 'number-range', label: 'Number Range Compression', description: 'Compress number ranges and approximations', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => numberRangeTransform(input) },
+  { id: 'time-duration', label: 'Time Duration Compression', description: 'Compress time durations', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => timeDurationTransform(input) },
+  { id: 'pleonasm', label: 'Pleonasm Removal', description: 'Remove redundant word pairs', risk: 'low', defaultModes: ['normal', 'heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => pleonasmTransform(input) },
   { id: 'article-removal', label: 'Article Removal', description: 'Drop articles in prose', risk: 'medium', defaultModes: ['heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => articleRemoval(input) },
   { id: 'abbreviation', label: 'Abbreviation', description: 'Use engineering abbreviations', risk: 'low', defaultModes: ['heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input) => abbreviationTransform(input) },
   { id: 'operator', label: 'Operator', description: 'Replace words with symbols', risk: 'high', defaultModes: ['heavy', 'ultra', 'custom'], profiles: applyProfiles, apply: (input, ctx) => operatorTransform(input, ctx.mode === 'ultra' ? 'left-arrow' : 'bc') },
