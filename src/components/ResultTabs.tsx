@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { CompressionResult } from '../compression/types';
 import { DiffView } from './DiffView';
+import { SideBySideDiff } from './SideBySideDiff';
 import { SafetyReviewPanel } from './SafetyReviewPanel';
 import { TransformStatsPanel } from './TransformStatsPanel';
 import { ReportPanel } from './ReportPanel';
 import { CopyButton } from './CopyButton';
+import { HighlightedOutput } from './HighlightedOutput';
 import { computeWordDiff } from '../lib/wordDiff';
 
 type Tab = 'output' | 'diff' | 'safety' | 'transforms' | 'report';
@@ -73,6 +75,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('output');
   const [exportFormat, setExportFormat] = useState<ExportFormat>('txt');
+  const [diffLayout, setDiffLayout] = useState<'inline' | 'side'>('inline');
 
   const diffChunks = useMemo(() => {
     if (activeTab !== 'diff' || !result || !input) return null;
@@ -127,8 +130,8 @@ export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }
         {/* Output */}
         {activeTab === 'output' &&
           (hasResult ? (
-            <div className="p-4 text-sm font-mono whitespace-pre-wrap flex-1">
-              {result!.output}
+            <div className="p-4 text-sm font-mono flex-1 overflow-auto">
+              <HighlightedOutput text={result!.output} />
               {result!.warnings.length > 0 && (
                 <div className="mt-4 text-amber-400 text-xs font-sans">
                   {result!.warnings.join(' | ')}
@@ -166,7 +169,25 @@ export function ResultTabs({ result, input, onDownloadOutput, onDownloadReport }
         {/* Diff */}
         {activeTab === 'diff' &&
           (diffChunks ? (
-            <DiffView chunks={diffChunks} />
+            <div className="flex flex-col h-full">
+              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-700 bg-slate-900 shrink-0">
+                <button
+                  onClick={() => setDiffLayout('inline')}
+                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${diffLayout === 'inline' ? 'bg-slate-700 text-slate-200' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  Inline
+                </button>
+                <button
+                  onClick={() => setDiffLayout('side')}
+                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${diffLayout === 'side' ? 'bg-slate-700 text-slate-200' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  Side-by-side
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                {diffLayout === 'inline' ? <DiffView chunks={diffChunks} /> : <SideBySideDiff chunks={diffChunks} />}
+              </div>
+            </div>
           ) : (
             <TabEmptyState>Compress something to see what changed.</TabEmptyState>
           ))}

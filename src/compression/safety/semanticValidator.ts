@@ -15,7 +15,18 @@ function diffLoss(before: string[], after: string[]): string[] {
   return before.filter((b) => !afterSet.has(b.toLowerCase()));
 }
 
-export function validateSemanticSafety(before: string, after: string, spansBefore: ProtectedSpan[], spansAfter: ProtectedSpan[]): SafetyIssue[] {
+export interface SafetyConfig {
+  protectPatterns?: string[];
+  requiredPhrases?: string[];
+}
+
+export function validateSemanticSafety(
+  before: string,
+  after: string,
+  spansBefore: ProtectedSpan[],
+  spansAfter: ProtectedSpan[],
+  config?: SafetyConfig,
+): SafetyIssue[] {
   const issues: SafetyIssue[] = [];
 
   const addLosses = (category: SafetyIssue['category'], losses: string[], severity: SafetyIssue['severity'], label: string) => {
@@ -38,6 +49,30 @@ export function validateSemanticSafety(before: string, after: string, spansBefor
 
   if (spansAfter.length < spansBefore.length) {
     issues.push({ severity: 'error', category: 'protected-span-loss', before: String(spansBefore.length), after: String(spansAfter.length), message: 'Protected span count decreased unexpectedly.' });
+  }
+
+  if (config?.requiredPhrases) {
+    for (const phrase of config.requiredPhrases) {
+      if (before.includes(phrase) && !after.includes(phrase)) {
+        issues.push({ severity: 'error', category: 'requirement-loss', before: phrase, message: `Required phrase removed: ${phrase}` });
+      }
+    }
+  }
+
+  if (config?.protectPatterns) {
+    for (const pattern of config.protectPatterns) {
+      try {
+        const regex = new RegExp(pattern, 'gi');
+        const beforeMatches = before.match(regex) ?? [];
+        const afterMatches = after.match(regex) ?? [];
+        const lost = diffLoss(beforeMatches, afterMatches);
+        for (const loss of lost.slice(0, 8)) {
+          issues.push({ severity: 'error', category: 'protected-span-loss', before: loss, message: `Protected pattern match removed: ${loss}` });
+        }
+      } catch {
+        issues.push({ severity: 'warning', category: 'protected-span-loss', before: pattern, message: `Invalid protectPattern: ${pattern}` });
+      }
+    }
   }
 
   return issues;

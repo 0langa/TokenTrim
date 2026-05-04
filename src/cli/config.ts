@@ -9,6 +9,8 @@ export type CliConfig = {
   maxRisk?: RiskLevel;
   targetTokens?: number;
   enabledTransforms?: string[];
+  protectPatterns?: string[];
+  requiredPhrases?: string[];
 };
 
 const CONFIG_FILENAMES = ['.tokentrimrc', '.tokentrimrc.json', 'tokentrim.config.json'];
@@ -48,6 +50,20 @@ function validateConfig(raw: unknown): CliConfig {
       throw new Error('Config enabledTransforms must be an array of strings');
     }
     cfg.enabledTransforms = obj.enabledTransforms as string[];
+  }
+
+  if (obj.protectPatterns !== undefined) {
+    if (!Array.isArray(obj.protectPatterns) || !obj.protectPatterns.every((x) => typeof x === 'string')) {
+      throw new Error('Config protectPatterns must be an array of strings');
+    }
+    cfg.protectPatterns = obj.protectPatterns as string[];
+  }
+
+  if (obj.requiredPhrases !== undefined) {
+    if (!Array.isArray(obj.requiredPhrases) || !obj.requiredPhrases.every((x) => typeof x === 'string')) {
+      throw new Error('Config requiredPhrases must be an array of strings');
+    }
+    cfg.requiredPhrases = obj.requiredPhrases as string[];
   }
 
   return cfg;

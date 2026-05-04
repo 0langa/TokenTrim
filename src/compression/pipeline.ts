@@ -15,6 +15,7 @@ import type {
   TransformStat,
 } from './types';
 import { validateSemanticSafety } from './safety/semanticValidator';
+import type { SafetyConfig } from './safety/semanticValidator';
 import type { TransformContext } from './transforms/types';
 
 const EMPTY_SPAN_STATS: ProtectedSpanStats = {
@@ -147,7 +148,11 @@ export function compress(text: string, options: CompressionOptions): Compression
       const transformStart = performance.now();
       const result = transform.apply(before, ctx);
       result.stat.durationMs = performance.now() - transformStart;
-      const issues = validateSemanticSafety(before, result.output, protectedRun.spans, protectedRun.spans);
+      const safetyConfig: SafetyConfig = {
+        protectPatterns: options.protectPatterns,
+        requiredPhrases: options.requiredPhrases,
+      };
+      const issues = validateSemanticSafety(before, result.output, protectedRun.spans, protectedRun.spans, safetyConfig);
       const allowedCategories = new Set(result.allowedSafetyCategories ?? []);
       const hasError = issues.some((i) => i.severity === 'error' && !allowedCategories.has(i.category));
 

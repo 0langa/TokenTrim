@@ -128,6 +128,8 @@ export type CompressionOptions = {
   targetTokens?: number;
   maxRisk?: RiskLevel;
   allowUnsafeTransforms?: boolean;
+  protectPatterns?: string[];
+  requiredPhrases?: string[];
 };
 
 export type CompressionRequest = {

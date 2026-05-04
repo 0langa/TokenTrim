@@ -116,7 +116,11 @@ function parseOptions(flags: Map<string, string | true>, cfg: CliConfig): Compre
     }
   }
 
-  return { mode, profile, tokenizer, maxRisk, targetTokens, enabledTransforms };
+  return {
+    mode, profile, tokenizer, maxRisk, targetTokens, enabledTransforms,
+    protectPatterns: cfg.protectPatterns,
+    requiredPhrases: cfg.requiredPhrases,
+  };
 }
 
 function runCompression(text: string, options: CompressionOptions) {

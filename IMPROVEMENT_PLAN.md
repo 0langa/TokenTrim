@@ -26,12 +26,10 @@
 - **Fix:** Added sentence-level near-duplicate detection using word-trigram Jaccard similarity (threshold ≥ 0.75). Runs after exact paragraph dedup. Skips sentences with < 8 words.
 - **Impact:** Catches paraphrased or lightly edited duplicate content that exact hashing misses.
 
-### 2.3 Smarter Budget Optimizer
-- **Problem:** `optimizeToBudget` brute-forces `light → normal → heavy → ultra` and stops at first match. It does not learn from input characteristics.
-- **Fixes:**
-  - **Heuristic short-circuit:** Estimate achievable savings from a quick scan (code density, markdown ratio, log repetition). Jump directly to the most likely mode.
-  - **Binary search variant:** For very large inputs, try `normal` first; if still over budget, jump to `ultra`; if under, try `heavy`.
-  - **Custom transform pruning:** In `custom` mode with target tokens, auto-disable the lowest-ROI transforms iteratively.
+### 2.3 Smarter Budget Optimizer --- DONE
+- **Problem:** `optimizeToBudget` brute-forces `light → normal → heavy → ultra` and stops at first match.
+- **Fix:** Added heuristic compressibility estimator (markdown ratio, paragraph repetition, filler word density, code block ratio). Chooses search order dynamically: aggressive order for highly compressible text, conservative for dense code, binary-search for medium.
+- **Impact:** Reaches budget faster on average; skips unnecessary light/normal attempts when heavy/ultra are clearly needed.
 
 ### 2.4 Streaming / Chunked Compression
 - **Problem:** The entire input is processed in one synchronous pass. Large files (>10 MB logs) block the worker/main thread.
@@ -61,8 +59,8 @@
 |---|-------------|--------|
 | 3.1 | **Sentence-level semantic similarity** | Before/after comparison using a lightweight embeddings model (e.g., `fastText` or `transformers.js` in the browser) to ensure rewritten sentences preserve meaning. Reject transforms that drop cosine similarity below a threshold. |
 | 3.2 | **AST-aware code protection** | For `repo-context`, parse JS/TS/Python with a lightweight parser. Protect function signatures, import statements, and exported names beyond regex-based `file-path` spans. |
-| 3.3 | **Configurable safety rules** | Allow `.tokentrimrc.json` to add custom `protectPatterns` (regexes) and `requiredPhrases` (strings that must survive compression). |
-| 3.4 | **Fuzz testing** | Generate random markdown/code/log inputs and assert that safety invariants never fail (no URL loss, no negation loss, etc.). |
+| 3.3 | **Configurable safety rules** --- DONE | Allow `.tokentrimrc.json` to add custom `protectPatterns` (regexes) and `requiredPhrases` (strings that must survive compression). Validated in `semanticValidator.ts`. |
+| 3.4 | **Fuzz testing** --- DONE | `tests/fuzz.test.ts` generates random markdown/code/log/prose/mixed inputs and asserts pipeline invariants: no crash, URLs preserved, output non-empty, metrics consistent, error count bounded. |
 
 ---
 
@@ -83,8 +81,8 @@
 
 | # | Improvement | Detail |
 |---|-------------|--------|
-| 5.1 | **Side-by-side diff view** | Replace or augment the current tab-based diff with a split-pane Monaco/CodeMirror diff editor (synchronized scrolling, inline highlights). |
-| 5.2 | **Syntax highlighting** | Highlight fenced code blocks in Output tab and diff view using `shiki` or `highlight.js`. |
+| 5.1 | **Side-by-side diff view** --- DONE | Added `SideBySideDiff.tsx` with inline/side toggle in the Diff tab. Two-column layout: original (red strikethrough) vs compressed (green highlight). |
+| 5.2 | **Syntax highlighting** --- DONE | `HighlightedOutput.tsx` uses `shiki` with `createJavaScriptRegexEngine` to highlight fenced code blocks in the Output tab. Supports JS/TS/JSON/YAML/Markdown/Python/Bash/CSS/HTML/Rust/Go/Java/XML. |
 | 5.3 | **Shareable URLs** | Serialize `mode`, `profile`, `input` (hashed or base64'd) into query params so users can share reproduction links. |
 | 5.4 | **Compression history** | Store last N results in `localStorage` with timestamps; allow reverting to a previous run. |
 | 5.5 | **Theme toggle** | Light/dark/system mode (Tailwind supports this easily). |
@@ -127,7 +125,7 @@
 | 8.1 | **WASM acceleration for tokenization** | If `js-tiktoken` or similar is adopted, token counting becomes exact and fast even for MB-scale inputs. |
 | 8.2 | **Lazy transform evaluation** | If a transform saves 0 chars on the first 1,000 chars sampled, skip it for the rest of the file. |
 | 8.3 | **Memory optimization** | `protectSpans` creates large placeholder maps. For files >1 MB, use a streaming span extractor that emits `{ start, end, type }` tuples without building intermediate strings. |
-| 8.4 | **Bundle splitting** | The web app currently bundles all transforms into the main chunk. Split each transform into a dynamic import so the initial load is <50 KB. |
+| 8.4 | **Bundle splitting** --- PARTIAL | Shiki is now bundled in the main chunk (~1.2 MB). Split it into a dynamic import so the initial load stays <50 KB. |
 
 ---
 
@@ -168,7 +166,7 @@
 8. Token budget UI bar (5.8)
 9. Mode comparison view (5.9)
 
-**Phase 3 — Advanced Engine (2–4 weeks)**
+**Phase 3 — Advanced Engine (2–4 weeks)** ✅ COMPLETE
 10. Smarter budget optimizer (2.3)
 11. Configurable safety rules (3.3)
 12. Fuzz testing (3.4)
@@ -179,6 +177,7 @@
 15. Plugin architecture (2.4)
 16. New profiles (CSV, JSONL, LaTeX) (6)
 17. GitHub Action (9.2)
+18. Bundle split shiki into dynamic import (8.4)
 
 ---
 
