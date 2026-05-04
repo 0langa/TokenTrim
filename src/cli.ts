@@ -164,6 +164,7 @@ function printHelp(ctx: CliContext): void {
   ctx.stdout.write('  tokentrim report <file> [options]        Generate compression report\n');
   ctx.stdout.write('  tokentrim stdin [options]                Compress stdin\n');
   ctx.stdout.write('  tokentrim repo <path> [options]          Generate local context pack\n');
+  ctx.stdout.write('  tokentrim watch <path> [options]         Watch file or directory for changes\n');
   ctx.stdout.write('  tokentrim init                           Create starter .tokentrimrc.json\n');
   ctx.stdout.write('  tokentrim list-transforms [--format json] List available transforms\n');
   ctx.stdout.write('  tokentrim list-profiles [--format json]  List available profiles\n');
@@ -293,6 +294,10 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
       fs.writeFileSync(target, JSON.stringify(STARTER_CONFIG, null, 2) + '\n', 'utf8');
       ctx.stdout.write(`Created ${path.basename(target)}\n`);
       return 0;
+    }
+
+    if (cmd === 'watch') {
+      fail('watch must be run directly (not via API). Use `tokentrim watch <path>`.');
     }
 
     // --- Compression commands ---
@@ -508,8 +513,41 @@ export function runCli(argv: string[], ctx: CliContext = { stdout: process.stdou
   }
 }
 
+async function runWatch(argv: string[]): Promise<void> {
+  const { positional, flags } = parseArgs(argv);
+  const input = positional[0];
+  if (!input) fail('watch requires a file or directory');
+  const cfg = loadConfig(process.cwd());
+  const options = parseOptions(flags, cfg);
+  const outDir = flags.get('--out') as string | undefined;
+  const dryRun = flags.has('--dry-run');
+
+  const processFile = async (filePath: string) => {
+    const text = fs.readFileSync(filePath, 'utf8');
+    const result = runCompression(text, options);
+    if (outDir && !dryRun) {
+      const rel = path.relative(input, filePath);
+      const dest = path.join(outDir, rel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, result.output, 'utf8');
+    }
+    process.stdout.write(`[watch] ${filePath}: ${result.metrics.estimatedTokensBefore}→${result.metrics.estimatedTokensAfter} tokens\n`);
+  };
+
+  const { default: chokidar } = await import('chokidar');
+  const watcher = chokidar.watch(input, { ignoreInitial: false, persistent: true });
+  watcher.on('add', processFile);
+  watcher.on('change', processFile);
+  process.stdout.write(`[watch] Watching ${input}...\n`);
+  await new Promise(() => {});
+}
+
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isMain) {
-  const code = runCli(process.argv.slice(2));
-  process.exit(code);
+  const args = process.argv.slice(2);
+  if (args[0] === 'watch') {
+    runWatch(args.slice(1)).catch((e) => { process.stderr.write(`Error: ${e.message}\n`); process.exit(1); });
+  } else {
+    process.exit(runCli(args));
+  }
 }

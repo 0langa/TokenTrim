@@ -1,12 +1,13 @@
 import { TOKENTRIM_VERSION } from '../../version';
 import type { Theme } from '../../hooks/useTheme';
 
-export type AppView = 'compress' | 'settings' | 'reference';
+export type AppView = 'compress' | 'settings' | 'reference' | 'compare';
 
 const VIEW_TITLES: Record<AppView, string> = {
   compress: 'Compress',
   settings: 'Settings',
   reference: 'Reference',
+  compare: 'Compare',
 };
 
 const GITHUB_URL = 'https://github.com/0langa/TokenTrim';

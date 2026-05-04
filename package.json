@@ -67,7 +67,9 @@
     "benchmark": "node scripts/benchmark.mjs"
   },
   "dependencies": {
+    "chokidar": "^5.0.0",
     "fast-diff": "^1.3.0",
+    "gpt-tokenizer": "^3.4.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },

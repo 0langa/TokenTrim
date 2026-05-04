@@ -216,6 +216,8 @@ export function CompressView({
           onLoadSample={setInput}
           onUploadFiles={(files) => void onFilesSelected(files)}
           onReset={handleReset}
+          targetTokens={targetTokens ? Number(targetTokens) : undefined}
+          currentTokens={result?.metrics.estimatedTokensAfter}
         />
 
         <InputPanel value={input} onChange={setInput} />

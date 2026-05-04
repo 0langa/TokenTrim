@@ -22,12 +22,15 @@ interface Props {
   onLoadSample: (text: string) => void;
   onUploadFiles: (files: FileList | null) => void;
   onReset: () => void;
+  targetTokens?: number;
+  currentTokens?: number;
 }
 
 export function ControlsPanel({
   mode, setMode, profile, setProfile, maxRisk, setMaxRisk,
   selectedPreset, onPresetSelect, allowUnsafeTransforms, setAllowUnsafeTransforms,
   customTransforms, toggleCustomTransform, onLoadSample, onUploadFiles, onReset,
+  targetTokens, currentTokens,
 }: Props) {
   return (
     <aside className="w-72 shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-y-auto">
@@ -77,6 +80,24 @@ export function ControlsPanel({
             </span>
           </label>
         </section>
+
+        {/* Token budget */}
+        {targetTokens && currentTokens !== undefined && (
+          <section>
+            <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-500 mb-1">
+              <span>Token budget</span>
+              <span className={currentTokens > targetTokens ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
+                {currentTokens.toLocaleString()} / {targetTokens.toLocaleString()}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${currentTokens > targetTokens ? 'bg-red-500' : 'bg-green-500'}`}
+                style={{ width: `${Math.min(100, (currentTokens / targetTokens) * 100)}%` }}
+              />
+            </div>
+          </section>
+        )}
 
         {/* Input helpers */}
         <section>

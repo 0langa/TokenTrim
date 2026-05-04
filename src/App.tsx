@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { AppShell } from './components/layout/AppShell';
 import { CompressView } from './views/CompressView';
+import { CompareView } from './views/CompareView';
 import { SettingsView } from './views/SettingsView';
 import { ReferenceView } from './views/ReferenceView';
 import type { AppView } from './components/layout/TopBar';
@@ -31,6 +32,9 @@ export default function App() {
           onResetAppSettings={resetAppSettings}
         />
       </div>
+      {view === 'compare' && (
+        <CompareView tokenizer={tokenizer} />
+      )}
       {view === 'settings' && (
         <SettingsView
           tokenizer={tokenizer}

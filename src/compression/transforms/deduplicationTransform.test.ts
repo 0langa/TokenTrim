@@ -41,4 +41,29 @@ describe('deduplicationTransform', () => {
     const { output } = deduplicationTransform('');
     expect(output).toBe('');
   });
+
+  it('removes near-duplicate sentences via trigram Jaccard', () => {
+    const s1 = 'The quick brown fox jumps over the lazy dog and runs into the forest.';
+    const s2 = 'The quick brown fox jumps over the lazy dog and runs into the woods.';
+    const input = `${s1}\n\n${s2}`;
+    const { output, stat } = deduplicationTransform(input);
+    expect(stat.replacements).toBeGreaterThanOrEqual(1);
+    expect(output).toContain(s1);
+    expect(output).not.toContain(s2);
+  });
+
+  it('keeps unique sentences even when paragraphs differ', () => {
+    const input = 'This is a completely unique sentence with many words here.\n\nAnother entirely different sentence with many words there.';
+    const { output, stat } = deduplicationTransform(input);
+    expect(output).toContain('This is a completely unique sentence with many words here.');
+    expect(output).toContain('Another entirely different sentence with many words there.');
+    expect(stat.replacements).toBe(0);
+  });
+
+  it('skips short sentences for near-duplicate check', () => {
+    const input = 'Short one.\n\nShort one.';
+    const { output, stat } = deduplicationTransform(input);
+    expect(output).toContain('Short one.');
+    expect(stat.replacements).toBe(0);
+  });
 });

@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Distribution & Packaging (High Impact, Low Effort)
+## 1. Distribution & Packaging (High Impact, Low Effort) --- DONE
 
 | # | Improvement | Motivation |
 |---|-------------|------------|
@@ -16,19 +16,24 @@
 
 ## 2. Core Compression Engine (High Impact, Medium Effort)
 
-### 2.1 Exact Tokenizers
+### 2.1 Exact Tokenizers --- DONE
 - **Problem:** `openai-cl100k` and `openai-o200k` fall back to `approxGenericEstimate` with `exact: false`.
-- **Fix:** Integrate `js-tiktoken` (WASM-free, ~1 MB) as an optional dependency. Keep `approx-generic` as the zero-dependency default, but provide *exact* counts when the package is available.
-- **Impact:** Budget optimizer and metrics become accurate for OpenAI models.
+- **Fix:** Integrated `gpt-tokenizer` (pure JS, no WASM) as a lazy-loaded dependency in the web worker. The worker preloads the exact encoder before compression; `openaiCompatibleEstimate` uses it when available and falls back to approximate otherwise.
+- **Impact:** Budget optimizer and metrics are now exact for OpenAI models in the web app. MetricsBar strips `~` prefix when `exact: true`.
 
-### 2.2 Smarter Budget Optimizer
+### 2.2 Smarter Deduplication --- DONE
+- **Problem:** `deduplicationTransform` only removed exact duplicate paragraphs.
+- **Fix:** Added sentence-level near-duplicate detection using word-trigram Jaccard similarity (threshold ≥ 0.75). Runs after exact paragraph dedup. Skips sentences with < 8 words.
+- **Impact:** Catches paraphrased or lightly edited duplicate content that exact hashing misses.
+
+### 2.3 Smarter Budget Optimizer
 - **Problem:** `optimizeToBudget` brute-forces `light → normal → heavy → ultra` and stops at first match. It does not learn from input characteristics.
 - **Fixes:**
   - **Heuristic short-circuit:** Estimate achievable savings from a quick scan (code density, markdown ratio, log repetition). Jump directly to the most likely mode.
   - **Binary search variant:** For very large inputs, try `normal` first; if still over budget, jump to `ultra`; if under, try `heavy`.
   - **Custom transform pruning:** In `custom` mode with target tokens, auto-disable the lowest-ROI transforms iteratively.
 
-### 2.3 Streaming / Chunked Compression
+### 2.4 Streaming / Chunked Compression
 - **Problem:** The entire input is processed in one synchronous pass. Large files (>10 MB logs) block the worker/main thread.
 - **Fix:** Add `compressStream(chunks, options)` API that:
   1. Compresses chunks independently.
@@ -36,7 +41,7 @@
   3. Yields `{ chunkIndex, output, metrics }` progressively.
 - **CLI impact:** `batch` and `repo` commands can process files in parallel with `Promise.all` or `worker_threads`.
 
-### 2.4 Plugin Architecture for Custom Transforms
+### 2.5 Plugin Architecture for Custom Transforms
 - **Problem:** Transforms are hardcoded in `transformRegistry.ts`. Users cannot add domain-specific rules without forking.
 - **Fix:**
   ```ts
@@ -65,7 +70,7 @@
 
 | # | Improvement | Detail |
 |---|-------------|--------|
-| 4.1 | **Watch mode** | `tokentrim compress file.md --watch --out file.trim.md` re-compresses on file change. |
+| 4.1 | **Watch mode** --- DONE | `tokentrim watch <path> [options]` re-compresses on file change using `chokidar`. Supports `--out` and `--dry-run`. |
 | 4.2 | **Git integration** | `tokentrim diff --staged` compresses the git diff before sending to an LLM. `tokentrim repo` could accept `--since-ref HEAD~5` to only pack changed files. |
 | 4.3 | **Diff output** | `--format diff` prints a unified diff (before/after) instead of the compressed text. Useful for CI review. |
 | 4.4 | **Parallel batch processing** | Use `worker_threads` or `p-limit` in `batch --recursive` to saturate CPU cores. |
@@ -80,11 +85,13 @@
 |---|-------------|--------|
 | 5.1 | **Side-by-side diff view** | Replace or augment the current tab-based diff with a split-pane Monaco/CodeMirror diff editor (synchronized scrolling, inline highlights). |
 | 5.2 | **Syntax highlighting** | Highlight fenced code blocks in Output tab and diff view using `shiki` or `highlight.js`. |
-| 5.3 | **Shareable URLs** | Serialize `mode`, `profile`, `input` (hashed or base64’d) into query params so users can share reproduction links. |
+| 5.3 | **Shareable URLs** | Serialize `mode`, `profile`, `input` (hashed or base64'd) into query params so users can share reproduction links. |
 | 5.4 | **Compression history** | Store last N results in `localStorage` with timestamps; allow reverting to a previous run. |
 | 5.5 | **Theme toggle** | Light/dark/system mode (Tailwind supports this easily). |
 | 5.6 | **Drag-and-drop folder support** | Currently only `FileList` from `<input type="file">`; enable dropping a directory via the File System Access API (with fallback). |
 | 5.7 | **Large file handling** | Warn when input >1 MB; offer to compress in worker chunks with a progress indicator. |
+| 5.8 | **Token budget bar** --- DONE | Inline token-budget progress bar in `ControlsPanel` showing `current / target` with green/red color coding. |
+| 5.9 | **Mode comparison view** --- DONE | New `CompareView` with 4 parallel workers (light/normal/heavy/ultra) showing side-by-side results: tokens, char%, copy button, and truncated output preview. |
 
 ---
 
@@ -106,9 +113,9 @@
 
 | # | Improvement | Detail |
 |---|-------------|--------|
-| 7.1 | **CLI integration tests** | Spawn the built `dist/cli.js` in temporary directories to test `init`, `compress`, `batch`, `repo`, and config merging end-to-end. |
+| 7.1 | **CLI integration tests** --- DONE | Spawn the built `dist/cli.js` in temporary directories to test `init`, `compress`, `batch`, `repo`, and config merging end-to-end. |
 | 7.2 | **Benchmark regression gate** | In CI, run benchmarks on fixtures and fail if savings % drops by >2 % or runtime increases by >20 % vs. baseline stored in repo. |
-| 7.3 | **Coverage reporting** | Add `@vitest/coverage-v8` and enforce thresholds (e.g., 80 % for `src/compression`). |
+| 7.3 | **Coverage reporting** --- DONE | Add `@vitest/coverage-v8` and enforce thresholds (e.g., 80 % for `src/compression`). |
 | 7.4 | **Property-based tests** | Use `fast-check` to generate arbitrary strings and assert safety invariants hold for all inputs. |
 
 ---
@@ -148,29 +155,30 @@
 
 ## Recommended Priority Order
 
-**Phase 1 — Unlock Usage (1–2 weeks)**
+**Phase 1 — Unlock Usage (1–2 weeks)** ✅ COMPLETE
 1. Publish to npm (1.1)
 2. Add `exports` / `engines` to `package.json` (1.3)
 3. CLI integration tests (7.1)
 4. Coverage reporting (7.3)
 
-**Phase 2 — Core Quality (2–4 weeks)**
-5. Exact tokenizer via optional `js-tiktoken` (2.1)
-6. Smarter budget optimizer (2.2)
-7. Configurable safety rules (3.3)
-8. Fuzz testing (3.4)
+**Phase 2 — Core Quality (2–4 weeks)** ✅ COMPLETE
+5. Exact tokenizer via `gpt-tokenizer` (2.1)
+6. Smarter deduplication with sentence-level Jaccard (2.2)
+7. CLI watch mode (4.1)
+8. Token budget UI bar (5.8)
+9. Mode comparison view (5.9)
 
-**Phase 3 — Developer Experience (2–3 weeks)**
-9. Side-by-side diff + syntax highlighting (5.1, 5.2)
-10. Watch mode + git integration (4.1, 4.2)
-11. Shareable URLs (5.3)
-12. VS Code extension PoC (9.1)
+**Phase 3 — Advanced Engine (2–4 weeks)**
+10. Smarter budget optimizer (2.3)
+11. Configurable safety rules (3.3)
+12. Fuzz testing (3.4)
+13. Side-by-side diff + syntax highlighting (5.1, 5.2)
 
 **Phase 4 — Scale & Ecosystem (ongoing)**
-13. Streaming / chunked compression (2.3)
-14. Plugin architecture (2.4)
-15. New profiles (CSV, JSONL, LaTeX) (6)
-16. GitHub Action (9.2)
+14. Streaming / chunked compression (2.3)
+15. Plugin architecture (2.4)
+16. New profiles (CSV, JSONL, LaTeX) (6)
+17. GitHub Action (9.2)
 
 ---
 
