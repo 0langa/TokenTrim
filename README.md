@@ -78,6 +78,4 @@ Full map: [docs/CODEMAP.md](docs/CODEMAP.md)
 
 - [docs/CODEMAP.md](docs/CODEMAP.md)
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-- [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md)
 - [CHANGELOG.md](CHANGELOG.md)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
